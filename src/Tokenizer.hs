@@ -1,4 +1,4 @@
-module Parser where
+module Tokenizer where
 
 import Control.Monad
 import Control.Applicative

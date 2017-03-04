@@ -14,8 +14,8 @@ option p = parser $ \st ->
       Fail _ -> (OK Nothing, st)
       OK v   -> (OK (Just v), st')
 
-consumeBy :: Parser a -> Parser String
-consumeBy p = parser $ \st ->
+consume :: Parser a -> Parser String
+consume p = parser $ \st ->
   let (res, st') = runParser p st in
     case res of
       Fail msg -> (Fail msg, st')

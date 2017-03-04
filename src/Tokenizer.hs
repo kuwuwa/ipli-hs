@@ -1,4 +1,4 @@
-module Tokenizer where
+module Tokenizer ( tokenize ) where
 
 import Control.Monad
 import Control.Applicative
@@ -6,14 +6,12 @@ import Control.Applicative
 import Lib.Parser
 import Lib.Combinator
 
-----------------------------------------
--- Tokenizer
-----------------------------------------
-
 import Token
 
-tokenRules :: [Parser Token]
-tokenRules = [atom, var, num, str, lparen, rparen, lbracket, rbracket]
+tokenize :: Parser [Token]
+tokenize = many token
+  where token = foldl1 (<|>) $ map (spaces >>) tokenRules
+        tokenRules = [atom, var, num, str, lparen, rparen, lbracket, rbracket]
 
 -- data Token = Atom String
 --            | Var String
@@ -29,19 +27,21 @@ atom = atomNormal <|> atomSymbols <|> atomOthers
   where 
     atomNormal :: Parser Token
     atomNormal = do
-      id <- consumeBy $ lower >> many (lower <|> upper <|> digit <|> exact '_')
+      id <- consume $ lower >> many (lower <|> upper <|> digit <|> exact '_')
       return $ Atom id
 
     atomSymbols :: Parser Token
     atomSymbols = do
       id <- some $ oneOf symbols
       return $ Atom id
-        where symbols = "~@#$^&*-+=\\/.:?"
+        where symbols = "~@#$^&*-+=\\/.:?<>"
 
     atomOthers :: Parser Token
     atomOthers = do
       id <- oneOf "!,.;"
       return $ Atom [id]
+
+    -- TODO: implement atomQuote
 
 var :: Parser Token
 var = do
@@ -50,7 +50,7 @@ var = do
   return $ Var (varHead:varTail)
 
 num :: Parser Token
-num = int <|> decimal
+num = decimal <|> int
   where
     int :: Parser Token
     int = do
@@ -59,7 +59,7 @@ num = int <|> decimal
 
     decimal :: Parser Token
     decimal = do
-      body <- consumeBy $ do
+      body <- consume $ do
         int -- intPart
         exact '.' 
         int -- fracPart
@@ -75,7 +75,7 @@ str = do
   body <- many $ except (exact '"') charInStr
   exact '"' -- end double quote
   return $ Str body
-    where charInStr = except (exact '\\') char <|> escSeq
+    where charInStr = except (oneOf "\"\\") char <|> escSeq
           escSeq = do
             exact '\\'
             ch <- char
@@ -86,7 +86,9 @@ str = do
                        'r' -> return '\r'
                        't' -> return '\t'
                        'v' -> return '\v'
+                       '"' -> return '"'
                        c   -> parseFail $ "unknown character \\" ++ [c]
+  -- this parser gives correct results, but gives insufficient failure message
 
 lparen :: Parser Token
 lparen = exact '(' >> return LParen
@@ -99,4 +101,3 @@ lbracket = exact '[' >> return LBracket
 
 rbracket :: Parser Token
 rbracket = exact ']' >> return RBracket
-  

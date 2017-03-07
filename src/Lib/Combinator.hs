@@ -18,7 +18,7 @@ consume p = parser $ \st ->
     case res of
       Fail msg -> (Fail msg, st')
       OK v     -> (OK $ collect st st', st')
-  where collect st@(PState (x:xs) posX) dest@(PState _ posY)
+  where collect st@(PState _ posX) dest@(PState _ posY)
           | posX == posY = []
           | otherwise = let (OK c, st') = runParser char st
                         in c : collect st' dest

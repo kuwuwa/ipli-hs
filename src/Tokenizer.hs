@@ -9,23 +9,16 @@ import Lib.Combinator
 
 import Token
 
+
 tokenize :: Parser [Token]
 tokenize = many token
   where token = foldl1 (<|>) $ map (spaces >>) tokenRules
         tokenRules = [atom, var, num, str, lparen, rparen, lbracket, rbracket, fail]
         fail = parseFail "unknown token"
 
--- data Token = Atom String
---            | Var String
---            | Num Integer
---            | Str String
---            | LParen
---            | RParen
---            | LBracket
---            | RBracket
 
 atom :: Parser Token
-atom = atomNormal <|> atomSymbols <|> atomOthers
+atom = atomNormal <|> atomSymbols <|> atomQuoted <|> atomOthers
   where 
     atomNormal :: Parser Token
     atomNormal = do
@@ -34,16 +27,19 @@ atom = atomNormal <|> atomSymbols <|> atomOthers
 
     atomSymbols :: Parser Token
     atomSymbols = do
-      id <- some $ oneOf symbols
+      id <- some $ oneOfChars symbols
       return $ Atom id
         where symbols = "~@#$^&*-+=\\/.:?<>"
 
+    atomQuoted :: Parser Token
+    atomQuoted = do
+      body <- quotedWith '\''
+      return $ Atom body
+
     atomOthers :: Parser Token
     atomOthers = do
-      id <- oneOf "!,.;"
+      id <- oneOfChars "!,.;"
       return $ Atom [id]
-
-    -- TODO: implement atomQuote
 
 var :: Parser Token
 var = do
@@ -56,41 +52,28 @@ num = decimal <|> int
   where
     int :: Parser Token
     int = do
-      body <- some digit
-      return $ Num (read body)
+      sign <- s <$> option (exact '-')
+      value <- read <$> some digit
+      return $ NumI (sign * value)
+        where s Nothing = 1
+              s _ = -1
 
     decimal :: Parser Token
     decimal = do
-      body <- consume $ do
+      value <- consume $ do
         int -- intPart
         exact '.' 
-        int -- fracPart
+        some digit -- fracPart
         option $ do -- exponent
-          oneOf "eE"
+          oneOfChars "eE"
           option $ exact '-'
           int
-      return $ Num (read body)
+      return $ NumF (read value)
 
 str :: Parser Token
 str = do
-  exact '"' -- begin double quote
-  body <- many $ except (exact '"') charInStr
-  exact '"' -- end double quote
+  body <- quotedWith '"'
   return $ Str body
-    where charInStr = except (oneOf "\"\\") char <|> escSeq
-          escSeq = do
-            exact '\\'
-            ch <- char
-            case ch of 'a' -> return '\a'
-                       'b' -> return '\b'
-                       'f' -> return '\f'
-                       'n' -> return '\n'
-                       'r' -> return '\r'
-                       't' -> return '\t'
-                       'v' -> return '\v'
-                       '"' -> return '"'
-                       c   -> parseFail $ "unknown character \\" ++ [c]
-  -- this parser gives correct results, but gives insufficient failure message
 
 lparen :: Parser Token
 lparen = exact '(' >> return LParen
@@ -103,3 +86,17 @@ lbracket = exact '[' >> return LBracket
 
 rbracket :: Parser Token
 rbracket = exact ']' >> return RBracket
+
+--------------------
+
+quotedWith :: Char -> Parser String
+quotedWith q = do
+  exact q -- begin quote
+  body <- many $ except (oneOfChars (q:"\\")) char <|> escSeq
+  exact q -- end quote
+  return body
+    where escSeq = do
+            exact '\\'
+            ch <- char
+            if ch `elem` "abfnrtv'\"\\`" then return $ read ('\\':[ch])
+            else parseFail $ "unknown character \\" ++ [ch]

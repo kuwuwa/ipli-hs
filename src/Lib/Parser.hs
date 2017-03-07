@@ -78,27 +78,29 @@ failParser = parser $ \st -> (Fail "failParser", st)
 instance Functor Parser where
   fmap f p = parser $ \st ->
     case runParser p st of
-      (OK o, st')     -> (OK (f o), st')
-      (Fail msg, st') -> ((Fail msg), st')
+      (OK o,     st') -> (OK (f o), st')
+      (Fail msg, st') -> (Fail msg, st)
 
 instance Applicative Parser where
   pure x = parser $ \st -> (OK x, st)
-  y <*> x = parser $ \st ->
-    let (v, st') = runParser x st
-        (w, st'') = runParser y st'
-        result = case (v, w) of
-                   (OK o, OK f)   -> OK (f o)
-                   (Fail msg, _)  -> Fail msg
-                   (_, Fail msg') -> Fail msg'
-    in (result, st'')
+  x <*> y = parser $ \st ->
+    case runParser x st of
+      (Fail msg, _) -> (Fail msg, st)
+      (OK f, st') -> case runParser y st' of
+                       (Fail msg, _) -> (Fail msg, st')
+                       (OK x,  st'') -> (OK $ f x, st'')
 
 instance Alternative Parser where
   empty = failParser
-  (<|>) p q = parser $ \st ->
-    let (res, st') = runParser p st in
-      case res of
-        (OK _) -> (res, st')
-        _      -> runParser q st
+  p <|> q = parser $ \st ->
+    case runParser p st of
+      (Fail _, _) -> runParser q st
+      (res,  st') -> (res, st')
+  many p = parser $ \st ->
+    case runParser p st of
+      (Fail msg, _) -> (OK [], st)
+      (OK v, st') -> let (OK vs, st'') = runParser (many p) st' in (OK (v:vs), st'')
+  some p = fmap (:) p <*> many p
 
 instance Monad Parser where
   return = pure

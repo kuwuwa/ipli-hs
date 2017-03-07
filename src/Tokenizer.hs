@@ -4,6 +4,7 @@ import Control.Monad
 import Control.Applicative
 
 import Lib.Parser
+import Lib.StringParser
 import Lib.Combinator
 
 import Token
@@ -11,7 +12,8 @@ import Token
 tokenize :: Parser [Token]
 tokenize = many token
   where token = foldl1 (<|>) $ map (spaces >>) tokenRules
-        tokenRules = [atom, var, num, str, lparen, rparen, lbracket, rbracket]
+        tokenRules = [atom, var, num, str, lparen, rparen, lbracket, rbracket, fail]
+        fail = parseFail "unknown token"
 
 -- data Token = Atom String
 --            | Var String

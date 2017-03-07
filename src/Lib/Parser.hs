@@ -1,25 +1,19 @@
 module Lib.Parser
-  ( Pos
+  ( Pos(..)
   , Result(..)
   , Parser(..)
   , PState(..)
-  , beginPos
-  , char
-  , digit
   , parser
+  , newLine
+  , proceed
+  , proceed1
+  , beginPos
   , failParser
   , parseFail
-  , line
-  , exact
-  , lower
-  , upper
-  , space
-  , spaces
   ) where
 
 import Control.Applicative
 import Control.Monad
-import Data.Char
 
 type Line = Int
 type Column = Int
@@ -39,11 +33,11 @@ begin = 0
 
 beginPos = Pos begin begin
 
-proceed1 :: Pos -> Pos
-proceed1 (Pos line col) = Pos line (col+1)
-
 proceed :: Int -> Pos -> Pos
 proceed n (Pos line col) = Pos line (col+n)
+
+proceed1 :: Pos -> Pos
+proceed1 = proceed 1
 
 newLine :: Pos -> Pos
 newLine (Pos line col) = Pos (line+1) begin
@@ -117,53 +111,5 @@ instance MonadPlus Parser where
   mzero = empty
   mplus = (<|>)
 
---------------------
-
 parseFail :: String -> Parser a
 parseFail msg = parser $ \st -> (Fail msg, st)
-
-filterP :: (a -> Bool) -> String -> Parser a -> Parser a
-filterP pred msg p = parser $ \st -> let (res, st') = runParser p st in
-    case (res, fmap pred res) of
-      (Fail _, _)   -> (res, st)
-      (_, OK False) -> (Fail msg, st)
-      _             -> (res, st')
-
---------------------
-
-isNewLine :: Char -> Bool
-isNewLine = flip elem "\n"
-
-char :: Parser Char
-char = parser $ p
-  where p st@(PState [] pos)  = (Fail "no more character", st)
-        p (PState (x:xs) pos) =
-          let nextPos = (if isNewLine x then newLine else proceed1) pos
-          in (OK x, PState xs nextPos)
-
-line :: Parser String
-line = do
-  x <- char
-  if isNewLine x
-  then return [x]
-  else do
-    xs <- line
-    return (x:xs)
-
-exact :: Char -> Parser Char
-exact c = filterP (== c) ("not " ++ [c]) char
-
-upper :: Parser Char
-upper = filterP isAsciiUpper "not one of A-Z" char
-
-lower :: Parser Char
-lower = filterP isAsciiLower "not one of a-z" char
-
-digit :: Parser Char
-digit = filterP isDigit "not a digit" char
-
-space :: Parser ()
-space = filterP (== ' ') "not a space" char >> return ()
-
-spaces :: Parser ()
-spaces = many space >> return ()

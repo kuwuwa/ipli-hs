@@ -1,4 +1,4 @@
-module Tokenizer ( tokenize ) where
+module Prolog.Tokenizer ( tokenize ) where
 
 import Control.Monad
 import Control.Applicative
@@ -7,7 +7,7 @@ import Lib.Parser
 import Lib.StringParser
 import Lib.Combinator
 
-import Token
+import Prolog.Token
 
 
 tokenize :: Parser [Token]
@@ -54,7 +54,7 @@ num = decimal <|> int
     int = do
       sign <- s <$> option (exact '-')
       value <- read <$> some digit
-      return $ NumI (sign * value)
+      return $ PInt (sign * value)
         where s Nothing = 1
               s _ = -1
 
@@ -68,7 +68,7 @@ num = decimal <|> int
           oneOfChars "eE"
           option $ exact '-'
           int
-      return $ NumF (read value)
+      return $ PFloat (read value)
 
 str :: Parser Token
 str = do

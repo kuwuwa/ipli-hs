@@ -1,60 +1,13 @@
 module Lib.Parser
-  ( Pos(..)
-  , Result(..)
+  ( Result(..)
   , Parser(..)
-  , PState(..)
   , parser
-  , newLine
-  , proceed
-  , proceed1
-  , beginPos
   , failParser
   , failParse
   ) where
 
 import Control.Applicative
 import Control.Monad
-
-type Line = Int
-type Column = Int
-
---------------------
-
-data Pos = Pos Line Column
-
-instance Show Pos where
-  show (Pos line col) = "Pos " ++ show line ++ " " ++ show col
-
-instance Eq Pos where
-  Pos lx cx == Pos ly cy = lx == ly && cx == cy
-
-begin :: Int
-begin = 0
-
-beginPos = Pos begin begin
-
-proceed :: Int -> Pos -> Pos
-proceed n (Pos line col) = Pos line (col+n)
-
-proceed1 :: Pos -> Pos
-proceed1 = proceed 1
-
-newLine :: Pos -> Pos
-newLine (Pos line col) = Pos (line+1) begin
-
---------------------
-
-data PState = PState String Pos
-
-instance Eq PState where
-  PState s0 p0 == PState s1 p1 = s0 == s1 && p0 == p1
-
-instance Show PState where
-  show (PState str (Pos line col)) =
-    "PState{line: "  ++ show line ++ ", col: " ++ show col ++
-    ", current: \"" ++ str ++ "\"}"
-
---------------------
 
 type Msg = String
 
@@ -74,21 +27,21 @@ instance Functor Result where
 
 --------------------
 
-data Parser o = Parser { runParser :: PState -> (Result o, PState)  }
+data Parser s o = Parser { runParser :: s -> (Result o, s)  }
 
-parser :: (PState -> (Result o, PState)) -> Parser o
+parser :: (s -> (Result o, s)) -> Parser s o
 parser = Parser
 
-failParser :: Parser a
+failParser :: Parser s a
 failParser = parser $ \st -> (Fail "failParser", st)
 
-instance Functor Parser where
+instance Functor (Parser s) where
   fmap f p = parser $ \st ->
     case runParser p st of
       (OK o,     st') -> (OK (f o), st')
       (Fail msg, st') -> (Fail msg, st)
 
-instance Applicative Parser where
+instance Applicative (Parser s) where
   pure x = parser $ \st -> (OK x, st)
   x <*> y = parser $ \st ->
     case runParser x st of
@@ -97,7 +50,7 @@ instance Applicative Parser where
                        (Fail msg, _) -> (Fail msg, st')
                        (OK x,  st'') -> (OK $ f x, st'')
 
-instance Alternative Parser where
+instance Alternative (Parser s) where
   empty = failParser
   p <|> q = parser $ \st ->
     case runParser p st of
@@ -109,16 +62,16 @@ instance Alternative Parser where
       (OK v, st') -> let (OK vs, st'') = runParser (many p) st' in (OK (v:vs), st'')
   some p = fmap (:) p <*> many p
 
-instance Monad Parser where
+instance Monad (Parser s) where
   return = pure
   x >>= f = parser $ \st ->
     let (y, st') = runParser x st in
       case y of Fail msg -> (Fail msg, st')
                 OK v     -> runParser (f v) st'
 
-instance MonadPlus Parser where
+instance MonadPlus (Parser s) where
   mzero = empty
   mplus = (<|>)
 
-failParse :: String -> Parser a
+failParse :: String -> Parser s a
 failParse msg = parser $ \st -> (Fail msg, st)

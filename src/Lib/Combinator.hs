@@ -5,25 +5,14 @@ import Control.Applicative
 import Lib.Parser
 import Lib.StringParser
 
-option :: Parser a -> Parser (Maybe a)
+option :: Parser s a -> Parser s (Maybe a)
 option p = parser $ \st ->
   let (res, st') = runParser p st in
     case res of
       Fail _ -> (OK Nothing, st)
       OK v   -> (OK (Just v), st')
 
-consume :: Parser a -> Parser String
-consume p = parser $ \st ->
-  let (res, st') = runParser p st in
-    case res of
-      Fail msg -> (Fail msg, st')
-      OK v     -> (OK $ collect st st', st')
-  where collect st@(PState _ posX) dest@(PState _ posY)
-          | posX == posY = []
-          | otherwise = let (OK c, st') = runParser char st
-                        in c : collect st' dest
-          
-except :: Parser a -> Parser b -> Parser b
+except :: Parser s a -> Parser s b -> Parser s b
 except p q = parser $ \st ->
   let (res, _) = runParser p st in
     case res of 

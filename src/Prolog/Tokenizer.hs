@@ -1,4 +1,13 @@
-module Prolog.Tokenizer ( tokenize ) where
+module Prolog.Tokenizer (
+    atom
+  , var
+  , num
+  , str
+  , lparen
+  , rparen
+  , lbracket
+  , rbracket
+  ) where
 
 import Control.Monad
 import Control.Applicative
@@ -10,15 +19,8 @@ import Lib.Combinator
 import Prolog.Token
 
 
-tokenize :: Parser [Token]
-tokenize = many token
-  where token = foldl1 (<|>) $ map (spaces >>) tokenRules
-        tokenRules = [atom, var, num, str, lparen, rparen, lbracket, rbracket, fail]
-        fail = parseFail "unknown token"
-
-
 atom :: Parser Token
-atom = atomNormal <|> atomSymbols <|> atomQuoted <|> atomOthers
+atom = atomNormal <|> atomSymbols <|> atomQuoted <|> atomOthers <|> failNotAtom
   where 
     atomNormal :: Parser Token
     atomNormal = do
@@ -41,14 +43,18 @@ atom = atomNormal <|> atomSymbols <|> atomQuoted <|> atomOthers
       id <- oneOfChars "!,.;"
       return $ Atom [id]
 
+    failNotAtom :: Parser Token
+    failNotAtom = failParse "not an atom"
+
 var :: Parser Token
-var = do
-  varHead <- upper <|> exact '_'
-  varTail <- many $ lower <|> upper <|> digit <|> exact '_'
-  return $ Var (varHead:varTail)
+var = varLexer <|> failParse "not a variable"
+  where varLexer = do
+          varHead <- upper <|> exact '_'
+          varTail <- many $ lower <|> upper <|> digit <|> exact '_'
+          return (Var $ varHead:varTail)
 
 num :: Parser Token
-num = decimal <|> int
+num = decimal <|> int <|> failParse "not a number"
   where
     int :: Parser Token
     int = do
@@ -76,16 +82,16 @@ str = do
   return $ Str body
 
 lparen :: Parser Token
-lparen = exact '(' >> return LParen
+lparen = (exact '(' >> return LParen) <|> failParse "not a left parenthesis"
 
 rparen :: Parser Token
-rparen = exact ')' >> return RParen
+rparen = (exact ')' >> return RParen) <|> failParse "not a right parenthesis"
 
 lbracket :: Parser Token
-lbracket = exact '[' >> return LBracket
+lbracket = (exact '[' >> return LBracket) <|> failParse "not a left bracket"
 
 rbracket :: Parser Token
-rbracket = exact ']' >> return RBracket
+rbracket = (exact ']' >> return RBracket) <|> failParse "not a right bracket"
 
 --------------------
 
@@ -98,5 +104,5 @@ quotedWith q = do
     where escSeq = do
             exact '\\'
             ch <- char
-            if ch `elem` "abfnrtv'\"\\`" then return $ read ('\\':[ch])
-            else parseFail $ "unknown character \\" ++ [ch]
+            if ch `elem` "abfnrtv'\"\\`" then return $ read ("'\\" ++ [ch] ++ "'")
+            else failParse $ "unknown character \\" ++ [ch]

@@ -9,7 +9,7 @@ module Lib.Parser
   , proceed1
   , beginPos
   , failParser
-  , parseFail
+  , failParse
   ) where
 
 import Control.Applicative
@@ -46,16 +46,23 @@ newLine (Pos line col) = Pos (line+1) begin
 
 data PState = PState String Pos
 
+instance Eq PState where
+  PState s0 p0 == PState s1 p1 = s0 == s1 && p0 == p1
+
 instance Show PState where
   show (PState str (Pos line col)) =
-    "PState[line: "  ++ show line ++ ", col: " ++ show col ++
-    ", current: \"" ++ str ++ "\"]"
+    "PState{line: "  ++ show line ++ ", col: " ++ show col ++
+    ", current: \"" ++ str ++ "\"}"
 
 --------------------
 
 type Msg = String
 
 data Result o = Fail Msg | OK o
+instance (Eq o) => Eq (Result o) where
+  Fail a == Fail b = a == b
+  OK a   == OK b   = a == b
+  _      == _      = False
 
 instance (Show o) => Show (Result o) where
   show (Fail msg) = "Fail " ++ show msg
@@ -113,5 +120,5 @@ instance MonadPlus Parser where
   mzero = empty
   mplus = (<|>)
 
-parseFail :: String -> Parser a
-parseFail msg = parser $ \st -> (Fail msg, st)
+failParse :: String -> Parser a
+failParse msg = parser $ \st -> (Fail msg, st)

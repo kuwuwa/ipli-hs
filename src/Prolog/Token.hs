@@ -11,22 +11,24 @@ data Token = Atom String
            | RBracket
 
 instance Eq Token where
-  Atom a == Atom b = a == b
-  Var a  == Var b  = a == b
-  PInt a == PInt b = a == b
+  Atom a   == Atom b   = a == b
+  Var a    == Var b    = a == b
+  PInt a   == PInt b   = a == b
   PFloat a == PFloat b = a == b
-  Str a  == Str b  = a == b
-  LParen == LParen = True
-  RParen == RParen = True
-  _ == _           = False
+  Str a    == Str b    = a == b
+  LParen   == LParen   = True
+  RParen   == RParen   = True
+  LBracket == LBracket = True
+  RBracket == RBracket = True
+  _ == _               = False
 
 instance Show Token where
-  show (Atom a) = "Atom " ++ show a
-  show (Var a)  = "Var "  ++ show a
-  show (PInt a) = "PInt " ++ show a
+  show (Atom a)   = "Atom " ++ show a
+  show (Var a)    = "Var "  ++ show a
+  show (PInt a)   = "PInt " ++ show a
   show (PFloat a) = "PFloat " ++ show a
-  show (Str a) =  "Str "  ++ show a
-  show LParen   = "LParen"
-  show RParen   = "RParen"
-  show LBracket = "LBracket"
-  show RBracket = "RBracket"
+  show (Str a)    =  "Str "  ++ show a
+  show LParen     = "LParen"
+  show RParen     = "RParen"
+  show LBracket   = "LBracket"
+  show RBracket   = "RBracket"

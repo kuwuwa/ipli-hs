@@ -11,7 +11,8 @@ Iikanji ProLog Interpreter written in Haskell
 token    ::= atom | variable | number | operator | string |
            | '(' | ')' | '[' | ']'
 atom     ::= lower (lower | upper | digit | '_')*
-           | (1 of "
+           | (one of "~@#$^&*-+=\\/:?<>")+
+           | '!' | ',' | '.' | ';'
            | '\'' (!'\'' char)* '\''
 variable ::= (upper | '_') (lower | upper | digit | '_')*
 number   ::= '-'? digit+ ('.' digit+)? (('e' | 'E') ('-')? digit+)?

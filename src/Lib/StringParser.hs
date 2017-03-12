@@ -1,5 +1,5 @@
 module Lib.StringParser (
-    StrStream(..)
+    StrState(..)
   , Pos(..)
   , beginNum
   , char
@@ -20,16 +20,16 @@ import Data.Char
 
 import Lib.Parser
 
-type StrParser o = Parser StrStream o
+type StrParser o = Parser StrState o
 
-data StrStream = StrStream String Pos
+data StrState = StrState String Pos
 
-instance Eq StrStream where
-  StrStream s0 p0 == StrStream s1 p1 = s0 == s1 && p0 == p1
+instance Eq StrState where
+  StrState s0 p0 == StrState s1 p1 = s0 == s1 && p0 == p1
 
-instance Show StrStream where
-  show (StrStream str (Pos line col)) =
-    "StrStream{line: "  ++ show line ++ ", col: " ++ show col ++
+instance Show StrState where
+  show (StrState str (Pos line col)) =
+    "StrState{line: "  ++ show line ++ ", col: " ++ show col ++
     ", current: \"" ++ str ++ "\"}"
 
 --------------------
@@ -63,10 +63,10 @@ isNewLine = flip elem "\n"
 
 char :: StrParser Char
 char = parser $ p
-  where p st@(StrStream [] pos)  = (Fail "no more character", st)
-        p (StrStream (x:xs) pos) =
+  where p st@(StrState [] pos)  = (Fail "no more character", st)
+        p (StrState (x:xs) pos) =
           let nextPos = (if isNewLine x then newLine else proceed1) pos
-          in (OK x, StrStream xs nextPos)
+          in (OK x, StrState xs nextPos)
 
 line :: StrParser String
 line = do
@@ -111,7 +111,7 @@ consume p = parser $ \st ->
     case res of
       Fail msg -> (Fail msg, st')
       OK v     -> (OK $ collect st st', st')
-  where collect st@(StrStream _ posX) dest@(StrStream _ posY)
+  where collect st@(StrState _ posX) dest@(StrState _ posY)
           | posX == posY = []
           | otherwise = let (OK c, st') = runParser char st
                         in c : collect st' dest

@@ -39,7 +39,7 @@ instance Functor (Parser s) where
   fmap f p = parser $ \st ->
     case runParser p st of
       (OK o,     st') -> (OK (f o), st')
-      (Fail msg, st') -> (Fail msg, st)
+      (Fail msg, _) -> (Fail msg, st)
 
 instance Applicative (Parser s) where
   pure x = parser $ \st -> (OK x, st)

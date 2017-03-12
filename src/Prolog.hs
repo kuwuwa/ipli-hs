@@ -10,7 +10,7 @@ import Prolog.Token
 import Prolog.Tokenizer
 
 tokenize :: String -> Result [Token]
-tokenize code = fst . flip runParser (StrStream code $ Pos beginNum beginNum)  $ do
+tokenize code = fst . flip runParser (StrState code $ Pos beginNum beginNum)  $ do
     tokens <- many token
     many $ space <|> (oneOfChars " \n" >> return ())
     except char (return "ok") <|> failParse "there is unknown token"

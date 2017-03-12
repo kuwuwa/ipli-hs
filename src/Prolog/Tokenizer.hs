@@ -18,7 +18,7 @@ import Lib.Combinator
 
 import Prolog.Token
 
-type StringParser o = Parser StrStream o
+type StringParser o = Parser StrState o
 
 atom :: StringParser Token
 atom = atomNormal <|> atomSymbols <|> atomQuoted <|> atomOthers <|> failNotAtom

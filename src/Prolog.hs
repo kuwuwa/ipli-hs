@@ -7,12 +7,15 @@ import Control.Applicative
 import Control.Monad
 import Control.Monad.Trans.State
 
+import Data.Map (Map)
+import qualified Data.Map as Map
+
 import Lib.Parser
 import Lib.Combinator
 import Lib.StringParser
 import Prolog.AstNode
 import Prolog.Operator (initOpData)
-import Prolog.Parser (topLevel)
+import Prolog.Parser (TokenStream(..), topLevel)
 import Prolog.Token
 import Prolog.Tokenizer
 
@@ -29,5 +32,6 @@ tokenize code = convert $ flip runParser (StrState code $ Pos beginNum beginNum)
 
 parse :: [Token] -> ([AstNode], [Token])
 parse tokenSeq =
-  let ((OK asts, rest), _) = runState (runParserT (many topLevel) tokenSeq) initOpData
+  let (((OK asts, TokenStream ind rest), _), _) =
+        runState (runStateT (runParserT (many topLevel) (TokenStream 0 tokenSeq)) initOpData) Map.empty
   in (asts, rest)

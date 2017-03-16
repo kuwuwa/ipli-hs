@@ -14,7 +14,7 @@ import qualified Data.Map.Strict as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
 
-import Lib.Parser (ParserT(..), runParserT, Result(..), failParse)
+import Lib.Parser (ParserT(..), parserT, runParserT, Result(..), failParse)
 
 import Prolog.Token (Token)
 import qualified Prolog.Token as Tk
@@ -23,11 +23,21 @@ import Prolog.Operator (Operator(..), OpState, OpType(..), OpMap(..), OpData(..)
 
 import Debug.Trace
 
-------------------------------
--- type definition of syntactic parser
-------------------------------
+------------------------------------------------------------
+-- token stream
+------------------------------------------------------------
 
-type SParser = ParserT [Token] OpState
+type Index = Int
+data TokenStream = TokenStream Index [Token]
+
+instance Show TokenStream where
+  show (TokenStream ind xs) = "TokenStream[" ++ show ind ++ "]" ++ show xs
+
+----------------------------------------------------------
+-- type definition of syntactic parser
+----------------------------------------------------------
+
+type SParser = ParserT TokenStream (StateT OpData ParseState)
 
 getZfz :: String -> SParser (Maybe Operator)
 getZfz key = lift . gets $ Map.lookup key . zfzMap
@@ -41,45 +51,75 @@ getZf key = lift . gets $ Map.lookup key . zfMap
 nextPrec :: Int -> SParser (Maybe Int)
 nextPrec prec = lift . gets $ Set.lookupLT prec . precs
 
-------------------------------
+----------------------------------------------------------
+-- memoization
+----------------------------------------------------------
+
+type Pos = Int
+type Prec = Int
+
+type ParseMemo = Map (Pos, Prec) (Result AstNode, TokenStream)
+
+type ParseState = State ParseMemo
+
+getMemo :: (Pos, Prec) -> SParser AstNode
+getMemo key = do
+  memo <- lift . lift . gets $ Map.lookup key
+  case memo of
+    Nothing -> failParse $ "couldn't remember"
+    Just res -> setResult res
+  where setResult res = parserT $ \_ -> return res
+
+setMemo :: (Pos, Prec) -> SParser AstNode -> SParser AstNode
+setMemo key parser = parserT $ \st -> do
+  result <- runParserT parser st
+  lift . modify $ Map.insert key result
+  return result
+
+withMemo :: (Pos, Prec) -> SParser AstNode -> SParser AstNode
+withMemo key parser = getMemo key <|> setMemo key parser
+  
+----------------------------------------------------------
 
 upperPrecLimit = 1200
 lowerPrecLimit = 0
 
--- topLevel :: SParser AstNode
--- topLevel = do
---
 topLevel :: SParser AstNode
 topLevel = do
   e <- expr upperPrecLimit
   period_
   return e
 
-expr :: Int -> SParser AstNode
-expr prec = do
-  -- seq (trace ("prec: " ++ show prec) prec) (return ())
-  xfx <|> suffix lassoc <|> lowerExpr
-  where xfx = do
-          lhs <- lowerExpr
-          (Operator name _ _) <- oper Xfx prec
-          rhs <- lowerExpr
-          return $ Comp name [lhs, rhs]
+index :: SParser Index
+index = parserT $ \st@(TokenStream ind xs) -> return (OK ind, st)
 
-        lowerExpr = do
+expr :: Prec -> SParser AstNode
+expr prec = do
+  ind <- index
+  withMemo (ind, prec) $ suffix lassoc
+  where lowerExpr = do
           val <- nextPrec prec
           case val of
-            Nothing -> withParen (expr upperPrecLimit) <|> compound <|> prim <|> failParse "not a expression"
+            Nothing -> simpleExpr
             Just prec' -> expr prec'
 
-        prefix = fx <|> fy <|> suffix lowerExpr
+        simpleExpr = withParen (expr upperPrecLimit) <|> compound <|> prim <|> failParse "not an expression"
+
+        term = fx <|> fy <|> xfx <|> suffix lowerExpr
           where fx = do
                   (Operator name _ _) <- oper Fx prec
                   term <- suffix lowerExpr
                   return $ Comp name [term]
                 fy = do
                   (Operator name _ _) <- oper Fy prec
-                  term <- prefix
+                  term <- term
                   return $ Comp name [term]
+
+        xfx = do
+          lhs <- lowerExpr
+          (Operator name _ _) <- oper Xfx prec
+          rhs <- lowerExpr
+          return $ Comp name [lhs, rhs]
 
         suffix parser = parser >>= loop
           where loop term = xf term <|> yf term <|> return term
@@ -88,9 +128,10 @@ expr prec = do
                   return $ Comp name [term]
                 yf term = do
                   (Operator name _ _) <- oper Yf prec
-                  loop $ Comp name [term]
+                  let term' = Comp name [term]
+                  yf term' <|> return term'
 
-        rassoc = loop <|> prefix
+        rassoc = loop <|> term
           where loop = do
                   lhs <- lowerExpr
                   (Operator name _ _) <- oper Xfy prec
@@ -157,9 +198,9 @@ prim = do
     Tk.Str    s -> return $ Str s
     _           -> failParse "not a primitive expression"
 
-------------------------------
+----------------------------------------------------------
 -- parser combinators for syntactic parsing
-------------------------------
+----------------------------------------------------------
 
 withParen :: SParser AstNode -> SParser AstNode
 withParen p = do
@@ -175,14 +216,14 @@ exactToken target = do
     then return tk
     else failParse $ "expected " ++ show target ++ ", but actually " ++ show tk
 
-------------------------------
+----------------------------------------------------------
 -- some atomic parsers
-------------------------------
+----------------------------------------------------------
 
 anything :: SParser Token
 anything = ParserT $ return . p
-  where p [] =     (Fail "no more token", [])
-        p (x:xs) = (OK x, xs)
+  where p st@(TokenStream _ [])       = (Fail "no more token", st)
+        p (TokenStream ind (x:xs)) = (OK x, TokenStream (ind+1) xs)
 
 lparen :: SParser Token
 lparen = exactToken Tk.LParen

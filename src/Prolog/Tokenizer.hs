@@ -26,23 +26,23 @@ atom = atomNormal <|> atomSymbols <|> atomQuoted <|> atomOthers <|> failNotAtom
     atomNormal :: StringParser Token
     atomNormal = do
       id <- consume $ lower >> many (lower <|> upper <|> digit <|> exact '_')
-      return $ Atom id
+      return $ Atom id False
 
     atomSymbols :: StringParser Token
     atomSymbols = do
       id <- some $ oneOfChars symbols
-      return $ Atom id
+      return $ Atom id False
         where symbols = "~@#$^&*-+=\\/.:?<>"
 
     atomQuoted :: StringParser Token
     atomQuoted = do
       body <- quotedWith '\''
-      return $ Atom body
+      return $ Atom body True
 
     atomOthers :: StringParser Token
     atomOthers = do
       id <- oneOfChars "!,.;"
-      return $ Atom [id]
+      return $ Atom [id] False
 
     failNotAtom :: StringParser Token
     failNotAtom = failParse "not an atom"

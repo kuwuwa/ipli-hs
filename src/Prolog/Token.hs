@@ -1,6 +1,6 @@
 module Prolog.Token where
 
-data Token = Atom String
+data Token = Atom String Bool
            | Var String
            | PInt Integer
            | PFloat Double
@@ -11,7 +11,7 @@ data Token = Atom String
            | RBracket
 
 instance Eq Token where
-  Atom a   == Atom b   = a == b
+  Atom a _ == Atom b _ = a == b
   Var a    == Var b    = a == b
   PInt a   == PInt b   = a == b
   PFloat a == PFloat b = a == b
@@ -23,7 +23,7 @@ instance Eq Token where
   _ == _               = False
 
 instance Show Token where
-  show (Atom a)   = "Atom " ++ show a
+  show (Atom a _) = "Atom " ++ show a
   show (Var a)    = "Var "  ++ show a
   show (PInt a)   = "PInt " ++ show a
   show (PFloat a) = "PFloat " ++ show a

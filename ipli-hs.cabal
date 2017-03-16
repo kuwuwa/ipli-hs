@@ -19,6 +19,9 @@ library
                      , Lib.Combinator
                      , Lib.StringParser
                      , Prolog
+                     , Prolog.AstNode
+                     , Prolog.Operator
+                     , Prolog.Parser
                      , Prolog.Token
                      , Prolog.Tokenizer
   build-depends:       base >= 4.7 && < 5

@@ -8,7 +8,8 @@ data AstNode = Atom String
              | Comp String [AstNode]
 
 join :: String -> [String] -> String
-join delim strs = concat . tail $ zipWith (++) (repeat delim) strs
+join _ [] = ""
+join delim (x:xs) = concat  $ x : zipWith (++) (repeat delim) xs
 
 instance Eq AstNode where
   Atom a        == Atom b        = a == b

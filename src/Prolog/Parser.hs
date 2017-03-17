@@ -55,14 +55,13 @@ nextPrec prec = lift . gets $ Set.lookupLT prec . precs
 -- memoization
 ----------------------------------------------------------
 
-type Pos = Int
 type Prec = Int
 
-type ParseMemo = Map (Pos, Prec) (Result AstNode, TokenStream)
+type ParseMemo = Map (Index, Prec) (Result AstNode, TokenStream)
 
 type ParseState = State ParseMemo
 
-getMemo :: (Pos, Prec) -> SParser AstNode
+getMemo :: (Index, Prec) -> SParser AstNode
 getMemo key = do
   memo <- lift . lift . gets $ Map.lookup key
   case memo of
@@ -70,13 +69,13 @@ getMemo key = do
     Just res -> setResult res
   where setResult res = parserT $ \_ -> return res
 
-setMemo :: (Pos, Prec) -> SParser AstNode -> SParser AstNode
+setMemo :: (Index, Prec) -> SParser AstNode -> SParser AstNode
 setMemo key parser = parserT $ \st -> do
   result <- runParserT parser st
   lift . modify $ Map.insert key result
   return result
 
-withMemo :: (Pos, Prec) -> SParser AstNode -> SParser AstNode
+withMemo :: (Index, Prec) -> SParser AstNode -> SParser AstNode
 withMemo key parser = getMemo key <|> setMemo key parser
   
 ----------------------------------------------------------
@@ -96,11 +95,15 @@ index = parserT $ \st@(TokenStream ind xs) -> return (OK ind, st)
 expr :: Prec -> SParser AstNode
 expr prec = do
   ind <- index
-  withMemo (ind, prec) $ suffix lassoc
+  result <- withMemo (ind, prec) $ do
+    l0 <- lassoc
+    yf l0 <|> return l0
+  return result
   where lowerExpr = do
+          ind <- index
           val <- nextPrec prec
           case val of
-            Nothing -> simpleExpr
+            Nothing -> withMemo (ind, 0) simpleExpr
             Just prec' -> expr prec'
 
         simpleExpr = withParen (expr upperPrecLimit) <|> compound <|> prim <|> failParse "not an expression"
@@ -123,13 +126,14 @@ expr prec = do
 
         suffix parser = parser >>= loop
           where loop term = xf term <|> yf term <|> return term
-                xf term = do
-                  (Operator name _ _) <- oper Xf prec
-                  return $ Comp name [term]
-                yf term = do
-                  (Operator name _ _) <- oper Yf prec
-                  let term' = Comp name [term]
-                  yf term' <|> return term'
+
+        xf term = do
+          (Operator name _ _) <- oper Xf prec
+          return $ Comp name [term]
+        yf term = do
+          (Operator name _ _) <- oper Yf prec
+          let term' = Comp name [term]
+          yf term' <|> return term'
 
         rassoc = loop <|> term
           where loop = do
@@ -162,7 +166,6 @@ oper opType prec = do
           | opType `elem` [Fx, Fy] = getFz
           | opType `elem` [Xf, Yf] = getZf
           | otherwise = getZfz
-
 
 compound :: SParser AstNode
 compound = do

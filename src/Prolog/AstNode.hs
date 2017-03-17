@@ -21,9 +21,9 @@ instance Eq AstNode where
   _             == _             = False
 
 instance Show AstNode where
-  show (Atom a)            = "<Atom " ++ show a ++ ">"
-  show (Var v)             = "<Var " ++ show v ++ ">"
-  show (PInt i)            = "<PInt " ++ show i ++ ">"
-  show (PFloat f)          = "<PFloat " ++ show f ++ ">"
-  show (Str s)             = "<Str " ++ s ++ ">"
-  show (Comp proc args)    = join " " ("<Comp" : proc : map show args) ++ ">"
+  show (Atom a)            = "(Atom " ++ show a ++ ")"
+  show (Var v)             = "(Var " ++ show v ++ ")"
+  show (PInt i)            = "(PInt " ++ show i ++ ")"
+  show (PFloat f)          = "(PFloat " ++ show f ++ ")"
+  show (Str s)             = "(Str " ++ s ++ ")"
+  show (Comp proc args)    = join " " ("(Comp" : proc : map show args) ++ ")"

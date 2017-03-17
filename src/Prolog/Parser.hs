@@ -1,8 +1,10 @@
-module Prolog.Parser where
--- module Prolog.Parser (
---     SParser
---   , topLevel
---   ) where
+module Prolog.Parser (
+    TokenStream(..)
+  , SParser
+  , topLevel
+  , expr
+  , compound
+  ) where
 
 import Control.Applicative
 import Control.Monad
@@ -19,7 +21,7 @@ import Lib.Parser (ParserT(..), parserT, runParserT, Result(..), failParse)
 import Prolog.Token (Token)
 import qualified Prolog.Token as Tk
 import Prolog.AstNode (AstNode(..))
-import Prolog.Operator (Operator(..), OpState, OpType(..), OpMap(..), OpData(..))
+import Prolog.Operator (Operator(..), OpState, OpType(..), OpData(..))
 
 import Debug.Trace
 
@@ -119,27 +121,27 @@ expr prec = do
           where fx = do
                   (Operator name _ _) <- oper Fx prec
                   term <- suffix lowerExpr
-                  return $ Comp name [term]
+                  return $ Func name [term]
                 fy = do
                   (Operator name _ _) <- oper Fy prec
                   term <- term
-                  return $ Comp name [term]
+                  return $ Func name [term]
 
         xfx = do
           lhs <- lowerExpr
           (Operator name _ _) <- oper Xfx prec
           rhs <- lowerExpr
-          return $ Comp name [lhs, rhs]
+          return $ Func name [lhs, rhs]
 
         suffix parser = parser >>= loop
           where loop term = xf term <|> yf term <|> return term
 
         xf term = do
           (Operator name _ _) <- oper Xf prec
-          return $ Comp name [term]
+          return $ Func name [term]
         yf term = do
           (Operator name _ _) <- oper Yf prec
-          let term' = Comp name [term]
+          let term' = Func name [term]
           yf term' <|> return term'
 
         rassoc = loop <|> term
@@ -147,7 +149,7 @@ expr prec = do
                   lhs <- lowerExpr
                   (Operator name _ _) <- oper Xfy prec
                   rhs <- rassoc
-                  return $ Comp name [lhs, rhs]
+                  return $ Func name [lhs, rhs]
 
         lassoc = do
           lhs <- rassoc
@@ -155,7 +157,7 @@ expr prec = do
           where loop ter = (do
                   (Operator name _ _) <- oper Yfx prec
                   rhs <- lowerExpr
-                  loop $ Comp name [ter, rhs]) <|> return ter
+                  loop $ Func name [ter, rhs]) <|> return ter
 
 oper :: OpType -> Int -> SParser Operator
 oper opType prec = do 
@@ -189,7 +191,7 @@ compound = do
           return $ arg0:rest) <|> return []
         rparen <|> failParse "expected a close parenthesis"
         return $ args
-      return $ Comp a xs
+      return $ Func a xs
     _ -> failParse "not a compound"
   where commaSep = do
           a <- anything

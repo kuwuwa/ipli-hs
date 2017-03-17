@@ -5,7 +5,7 @@ data AstNode = Atom String
              | PInt Integer
              | PFloat Double
              | Str String
-             | Comp String [AstNode]
+             | Func String [AstNode]
 
 join :: String -> [String] -> String
 join _ [] = ""
@@ -17,7 +17,7 @@ instance Eq AstNode where
   PInt a        == PInt b        = a == b
   PFloat a      == PFloat b      = a == b
   Str a         == Str b         = a == b
-  Comp p0 args0 == Comp p1 args1 = (p0, args0) == (p1, args1)
+  Func p0 args0 == Func p1 args1 = (p0, args0) == (p1, args1)
   _             == _             = False
 
 instance Show AstNode where
@@ -26,4 +26,4 @@ instance Show AstNode where
   show (PInt i)            = "(PInt " ++ show i ++ ")"
   show (PFloat f)          = "(PFloat " ++ show f ++ ")"
   show (Str s)             = "(Str " ++ s ++ ")"
-  show (Comp proc args)    = join " " ("(Comp" : proc : map show args) ++ ")"
+  show (Func proc args)    = join " " ("(Func" : proc : map show args) ++ ")"

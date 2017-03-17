@@ -242,7 +242,7 @@ rparen :: SParser Token
 rparen = exactToken Tk.RParen
 
 period :: SParser Token
-period = exactToken (Tk.Atom "." True) <|> exactToken (Tk.Atom "." False)
+period = exactToken Tk.Period
 
 period_ :: SParser ()
 period_ = period >> return ()

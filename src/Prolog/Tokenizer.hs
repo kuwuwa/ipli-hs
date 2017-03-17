@@ -7,6 +7,7 @@ module Prolog.Tokenizer (
   , rparen
   , lbracket
   , rbracket
+  , period
   ) where
 
 import Control.Monad
@@ -93,6 +94,12 @@ lbracket = (exact '[' >> return LBracket) <|> failParse "not a left bracket"
 
 rbracket :: StringParser Token
 rbracket = (exact ']' >> return RBracket) <|> failParse "not a right bracket"
+
+period :: StringParser Token
+period = do
+  many delim >> exact '.' >> (except char (return ()) <|> (some delim >> return ()))
+  return Period
+  where delim = (space <|> (exact '\n' >> return ())) >> return ()
 
 --------------------
 

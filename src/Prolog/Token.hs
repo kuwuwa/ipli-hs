@@ -9,6 +9,7 @@ data Token = Atom String Bool
            | RParen
            | LBracket
            | RBracket
+           | Period
 
 instance Eq Token where
   Atom a _ == Atom b _ = a == b
@@ -20,6 +21,7 @@ instance Eq Token where
   RParen   == RParen   = True
   LBracket == LBracket = True
   RBracket == RBracket = True
+  Period   == Period   = True
   _ == _               = False
 
 instance Show Token where
@@ -32,3 +34,4 @@ instance Show Token where
   show RParen     = "RParen"
   show LBracket   = "LBracket"
   show RBracket   = "RBracket"
+  show Period     = "Period"

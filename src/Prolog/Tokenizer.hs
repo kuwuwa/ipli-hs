@@ -8,6 +8,7 @@ module Prolog.Tokenizer (
   , lbracket
   , rbracket
   , period
+  , bar
   ) where
 
 import Control.Monad
@@ -102,6 +103,9 @@ period = do
   many delim >> exact '.' >> (except char (return ()) <|> (some delim >> return ()))
   return Period
   where delim = (space <|> (exact '\n' >> return ())) >> return ()
+
+bar :: StrParser Token
+bar = exact '|' >> return Bar
 
 ------------------------------------------------------------
 -- utility functions

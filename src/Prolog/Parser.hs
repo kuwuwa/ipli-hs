@@ -3,7 +3,10 @@ module Prolog.Parser (
   , SParser
   , topLevel
   , expr
-  , compound
+  , func
+  , prim
+  , expr0
+  , upperPrecLimit
   ) where
 
 import Control.Applicative
@@ -32,6 +35,9 @@ data TokenStream = TokenStream Index [Token]
 
 instance Show TokenStream where
   show (TokenStream ind xs) = "TokenStream[" ++ show ind ++ "]" ++ show xs
+
+instance Eq TokenStream where
+  TokenStream ind0 xs0 == TokenStream ind1 xs1 = (ind0, xs0) == (ind1, xs1)
 
 ------------------------------------------------------------
 -- type definition of syntactic parser
@@ -79,9 +85,6 @@ topLevel = do
   period_
   return e
 
-index :: SParser Index
-index = parserT $ \st@(TokenStream ind xs) -> return (OK ind, st)
-
 expr :: Prec -> SParser AstNode
 expr prec = do
   ind <- index
@@ -96,25 +99,10 @@ expr prec = do
                      Fail msg -> (Fail $ "(lookahead)" ++ msg, st)
                      v        -> (v, st)
 
-        lowerExpr = do
-          val <- nextPrec prec
-          case val of
-            Nothing -> simpleExpr
-            Just prec' -> expr prec'
-          where nextPrec :: Int -> SParser (Maybe Int)
-                nextPrec prec = lift . gets $ Set.lookupLT prec . precs
-
-        simpleExpr = do
-          ind <- index
-          withMemo (ind, 0) $ withParen (expr upperPrecLimit) <|>
-                              compound <|>
-                              prim <|>
-                              failParse "not an expression"
-
-        term = fx <|> fy <|> xfx <|> suffix lowerExpr
+        term = fx <|> fy <|> xfx <|> suffix (lowerExpr prec)
           where fx = do
                   (Operator name _ _) <- oper Fx prec
-                  term <- suffix lowerExpr
+                  term <- suffix $ lowerExpr prec
                   return $ Func name [term]
                 fy = do
                   (Operator name _ _) <- oper Fy prec
@@ -122,9 +110,9 @@ expr prec = do
                   return $ Func name [term]
 
         xfx = do
-          lhs <- lowerExpr
+          lhs <- lowerExpr prec
           (Operator name _ _) <- oper Xfx prec
-          rhs <- lowerExpr
+          rhs <- lowerExpr prec
           return $ Func name [lhs, rhs]
 
         suffix parser = parser >>= loop
@@ -141,7 +129,7 @@ expr prec = do
 
         rassoc = loop <|> term
           where loop = do
-                  lhs <- lowerExpr
+                  lhs <- lowerExpr prec
                   (Operator name _ _) <- oper Xfy prec
                   rhs <- rassoc
                   return $ Func name [lhs, rhs]
@@ -151,8 +139,77 @@ expr prec = do
           loop lhs
           where loop ter = (do
                   (Operator name _ _) <- oper Yfx prec
-                  rhs <- lowerExpr
+                  rhs <- lowerExpr prec
                   loop $ Func name [ter, rhs]) <|> return ter
+
+expr0 = do
+  ind <- index
+  withMemo (ind, 0) $ withParen (expr upperPrecLimit) <|>
+                      func <|>
+                      prim <|>
+                      list <|>
+                      failParse "not an expression"
+
+func :: SParser AstNode
+func = do
+  pred <- prim
+  case pred of
+    Atom a -> do
+      xs <- do
+        lparen
+        args <- (do
+          arg0 <- lowerExpr 1000
+          rest <- many $ do
+            commaSep
+            lowerExpr 1000
+          return $ arg0:rest) <|> return []
+        rparen <|> failParse "expected a close parenthesis"
+        return $ args
+      return $ Func a xs
+    _ -> failParse "not a func"
+
+list :: SParser AstNode
+list = do
+  lbracket
+  (<|>) (rbracket >> (return Nil)) $ do
+    v <- lowerExpr 1000
+    vs <- many $ do
+      commaSep
+      lowerExpr 1000
+    w <- (exactToken Tk.Bar >> lowerExpr 1000) <|> return Nil
+    rbracket
+    return $ foldr Pair w (v:vs)
+
+prim :: SParser AstNode
+prim = do
+  token <- anything
+  case token of
+    Tk.Atom a b -> return $ Atom a
+    Tk.Var    v -> return $ Var v
+    Tk.PInt   i -> return $ PInt i
+    Tk.PFloat f -> return $ PFloat f
+    Tk.Str    s -> return $ Str s
+    _           -> failParse "not a primitive expression"
+
+------------------------------------------------------------
+-- helpful parsers
+------------------------------------------------------------
+
+lowerExpr :: Int -> SParser AstNode
+lowerExpr prec = do
+  prec' <- lift . gets $ Set.lookupLT prec . precs
+  case prec' of
+    Nothing -> expr0
+    Just prec' -> expr prec'
+
+index :: SParser Index
+index = parserT $ \st@(TokenStream ind xs) -> return (OK ind, st)
+
+commaSep = do
+  a <- anything
+  case a of
+    Tk.Atom "," False -> return ()
+    _ -> failParse "not a comma separator"
 
 oper :: OpType -> Int -> SParser Operator
 oper opType prec = do 
@@ -179,45 +236,6 @@ oper opType prec = do
 
         getZf :: String -> SParser (Maybe Operator)
         getZf key = lift . gets $ Map.lookup key . zfMap
-
-
-compound :: SParser AstNode
-compound = do
-  pred <- prim
-  case pred of
-    Atom a -> do
-      xs <- do
-        lparen
-        args <- (do
-          arg0 <- expr 999
-          rest <- many $ do
-            commaSep
-            expr 999
-          return $ arg0:rest) <|> return []
-        rparen <|> failParse "expected a close parenthesis"
-        return $ args
-      return $ Func a xs
-    _ -> failParse "not a compound"
-  where commaSep = do
-          a <- anything
-          case a of
-            Tk.Atom "," False -> return ()
-            _ -> failParse "not a comma separator"
-    
-prim :: SParser AstNode
-prim = do
-  token <- anything
-  case token of
-    Tk.Atom a b -> return $ Atom a
-    Tk.Var    v -> return $ Var v
-    Tk.PInt   i -> return $ PInt i
-    Tk.PFloat f -> return $ PFloat f
-    Tk.Str    s -> return $ Str s
-    _           -> failParse "not a primitive expression"
-
-------------------------------------------------------------
--- parser combinators for syntactic parsing
-------------------------------------------------------------
 
 withParen :: SParser AstNode -> SParser AstNode
 withParen p = do
@@ -247,6 +265,12 @@ lparen = exactToken Tk.LParen
 
 rparen :: SParser Token
 rparen = exactToken Tk.RParen
+
+lbracket :: SParser Token
+lbracket = exactToken Tk.LBracket
+
+rbracket :: SParser Token
+rbracket = exactToken Tk.RBracket
 
 period :: SParser Token
 period = exactToken Tk.Period

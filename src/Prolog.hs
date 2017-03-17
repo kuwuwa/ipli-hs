@@ -28,7 +28,7 @@ tokenize code = convert $ flip runParser (StrState code beginPos) $ do
     except char (return "ok") <|> failParse "there is unknown token"
     return tokens
   where token = foldl1 (<|>) $ map (spaces >>) tokenRules
-        tokenRules = [period, atom, var, num, str, lparen, rparen, lbracket, rbracket, failParse "unknown token"]
+        tokenRules = [period, atom, var, num, str, lparen, rparen, lbracket, rbracket, bar, failParse "unknown token"]
         convert (Fail msg, StrState rest pos) = (Fail (msg ++ show pos), rest)
         convert (OK val, StrState rest pos) = (OK val, rest)
 

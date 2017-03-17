@@ -96,10 +96,17 @@ expr :: Prec -> SParser AstNode
 expr prec = do
   ind <- index
   result <- withMemo (ind, prec) $ do
+    lookahead
     l0 <- lassoc
     yf l0 <|> return l0
   return result
-  where lowerExpr = do
+  where lookahead = parserT $ \st -> do
+          (result, _) <- runParserT anything st
+          return $ case result of
+                     Fail msg -> (Fail $ "(lookahead)" ++ msg, st)
+                     v        -> (v, st)
+
+        lowerExpr = do
           ind <- index
           val <- nextPrec prec
           case val of
@@ -224,7 +231,7 @@ exactToken target = do
 ----------------------------------------------------------
 
 anything :: SParser Token
-anything = ParserT $ return . p
+anything = parserT $ return . p
   where p st@(TokenStream _ [])       = (Fail "no more token", st)
         p (TokenStream ind (x:xs)) = (OK x, TokenStream (ind+1) xs)
 

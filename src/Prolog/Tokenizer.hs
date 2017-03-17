@@ -19,46 +19,48 @@ import Lib.Combinator
 
 import Prolog.Token
 
-type StringParser o = Parser StrState o
+------------------------------------------------------------
+-- tokenizers for Prolog
+------------------------------------------------------------
 
-atom :: StringParser Token
+atom :: StrParser Token
 atom = atomNormal <|> atomSymbols <|> atomQuoted <|> atomOthers <|> failNotAtom
   where 
-    atomNormal :: StringParser Token
+    atomNormal :: StrParser Token
     atomNormal = do
       id <- consume $ lower >> many (lower <|> upper <|> digit <|> exact '_')
       return $ Atom id False
 
-    atomSymbols :: StringParser Token
+    atomSymbols :: StrParser Token
     atomSymbols = do
       id <- some $ oneOfChars symbols
       return $ Atom id False
         where symbols = "~@#$^&*-+=\\/.:?<>"
 
-    atomQuoted :: StringParser Token
+    atomQuoted :: StrParser Token
     atomQuoted = do
       body <- quotedWith '\''
       return $ Atom body True
 
-    atomOthers :: StringParser Token
+    atomOthers :: StrParser Token
     atomOthers = do
       id <- oneOfChars "!,.;"
       return $ Atom [id] False
 
-    failNotAtom :: StringParser Token
+    failNotAtom :: StrParser Token
     failNotAtom = failParse "not an atom"
 
-var :: StringParser Token
+var :: StrParser Token
 var = varLexer <|> failParse "not a variable"
   where varLexer = do
           varHead <- upper <|> exact '_'
           varTail <- many $ lower <|> upper <|> digit <|> exact '_'
           return (Var $ varHead:varTail)
 
-num :: StringParser Token
+num :: StrParser Token
 num = decimal <|> int <|> failParse "not a number"
   where
-    int :: StringParser Token
+    int :: StrParser Token
     int = do
       sign <- s <$> option (exact '-')
       value <- read <$> some digit
@@ -66,7 +68,7 @@ num = decimal <|> int <|> failParse "not a number"
         where s Nothing = 1
               s _ = -1
 
-    decimal :: StringParser Token
+    decimal :: StrParser Token
     decimal = do
       value <- consume $ do
         int -- intPart
@@ -78,32 +80,34 @@ num = decimal <|> int <|> failParse "not a number"
           int
       return $ PFloat (read value)
 
-str :: StringParser Token
+str :: StrParser Token
 str = do
   body <- quotedWith '"'
   return $ Str body
 
-lparen :: StringParser Token
+lparen :: StrParser Token
 lparen = (exact '(' >> return LParen) <|> failParse "not a left parenthesis"
 
-rparen :: StringParser Token
+rparen :: StrParser Token
 rparen = (exact ')' >> return RParen) <|> failParse "not a right parenthesis"
 
-lbracket :: StringParser Token
+lbracket :: StrParser Token
 lbracket = (exact '[' >> return LBracket) <|> failParse "not a left bracket"
 
-rbracket :: StringParser Token
+rbracket :: StrParser Token
 rbracket = (exact ']' >> return RBracket) <|> failParse "not a right bracket"
 
-period :: StringParser Token
+period :: StrParser Token
 period = do
   many delim >> exact '.' >> (except char (return ()) <|> (some delim >> return ()))
   return Period
   where delim = (space <|> (exact '\n' >> return ())) >> return ()
 
---------------------
+------------------------------------------------------------
+-- utility functions
+-------------------------------------------------------------
 
-quotedWith :: Char -> StringParser String
+quotedWith :: Char -> StrParser String
 quotedWith q = do
   exact q -- begin quote
   body <- many $ except (oneOfChars (q:"\\")) char <|> escSeq

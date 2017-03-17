@@ -1,6 +1,8 @@
 module Lib.StringParser (
-    StrState(..)
+    StrParser
+  , StrState(..)
   , Pos(..)
+  , beginPos
   , beginNum
   , char
   , line
@@ -46,6 +48,9 @@ instance Eq Pos where
 
 beginNum :: Int
 beginNum = 0
+
+beginPos :: Pos
+beginPos = Pos beginNum beginNum
 
 proceed :: Int -> Pos -> Pos
 proceed n (Pos line col) = Pos line (col+n)

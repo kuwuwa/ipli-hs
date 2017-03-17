@@ -1,6 +1,8 @@
 module Prolog (
-    module Lib.Parser
-  , tokenize, parse
+    module Prolog.Parser
+  , module Prolog.Tokenizer
+  , tokenize
+  , parse
   ) where
 
 import Control.Applicative
@@ -13,14 +15,14 @@ import qualified Data.Map as Map
 import Lib.Parser
 import Lib.Combinator
 import Lib.StringParser
-import Prolog.AstNode
+import Prolog.AstNode (AstNode)
 import Prolog.Operator (initOpData)
+import Prolog.Token (Token)
 import Prolog.Parser (TokenStream(..), topLevel)
-import Prolog.Token
 import Prolog.Tokenizer
 
 tokenize :: String -> (Result [Token], String)
-tokenize code = convert $ flip runParser (StrState code $ Pos beginNum beginNum) $ do
+tokenize code = convert $ flip runParser (StrState code beginPos) $ do
     tokens <- many token
     many $ space <|> (oneOfChars " \n" >> return ())
     except char (return "ok") <|> failParse "there is unknown token"

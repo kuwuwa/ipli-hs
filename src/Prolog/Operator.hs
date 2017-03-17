@@ -2,11 +2,11 @@ module Prolog.Operator (
     OpType(..)
   , Operator(..)
   , OpState
-  , OpData(zfzMap, fzMap, zfMap, precs)
+  , OpData(zfzMap, fzMap, zfMap, precs) -- except the constructor
   , mkOpData
   , OpMap
   , initOpData
-  )where
+  ) where
 
 import Data.Set (Set)
 import qualified Data.Set as Set

@@ -23,8 +23,6 @@ import qualified Prolog.Token as Tk
 import Prolog.AstNode (AstNode(..))
 import Prolog.Operator (Operator(..), OpState, OpType(..), OpData(..))
 
-import Debug.Trace
-
 ------------------------------------------------------------
 -- token stream
 ------------------------------------------------------------
@@ -35,27 +33,15 @@ data TokenStream = TokenStream Index [Token]
 instance Show TokenStream where
   show (TokenStream ind xs) = "TokenStream[" ++ show ind ++ "]" ++ show xs
 
-----------------------------------------------------------
+------------------------------------------------------------
 -- type definition of syntactic parser
-----------------------------------------------------------
+------------------------------------------------------------
 
 type SParser = ParserT TokenStream (StateT OpData ParseState)
 
-getZfz :: String -> SParser (Maybe Operator)
-getZfz key = lift . gets $ Map.lookup key . zfzMap
-
-getFz :: String -> SParser (Maybe Operator)
-getFz key = lift . gets $ Map.lookup key . fzMap
-
-getZf :: String -> SParser (Maybe Operator)
-getZf key = lift . gets $ Map.lookup key . zfMap
-
-nextPrec :: Int -> SParser (Maybe Int)
-nextPrec prec = lift . gets $ Set.lookupLT prec . precs
-
-----------------------------------------------------------
+------------------------------------------------------------
 -- memoization
-----------------------------------------------------------
+------------------------------------------------------------
 
 type Prec = Int
 
@@ -80,6 +66,8 @@ setMemo key parser = parserT $ \st -> do
 withMemo :: (Index, Prec) -> SParser AstNode -> SParser AstNode
 withMemo key parser = getMemo key <|> setMemo key parser
   
+----------------------------------------------------------
+-- syntactic parsers for Prolog
 ----------------------------------------------------------
 
 upperPrecLimit = 1200
@@ -109,13 +97,19 @@ expr prec = do
                      v        -> (v, st)
 
         lowerExpr = do
-          ind <- index
           val <- nextPrec prec
           case val of
-            Nothing -> withMemo (ind, 0) simpleExpr
+            Nothing -> simpleExpr
             Just prec' -> expr prec'
+          where nextPrec :: Int -> SParser (Maybe Int)
+                nextPrec prec = lift . gets $ Set.lookupLT prec . precs
 
-        simpleExpr = withParen (expr upperPrecLimit) <|> compound <|> prim <|> failParse "not an expression"
+        simpleExpr = do
+          ind <- index
+          withMemo (ind, 0) $ withParen (expr upperPrecLimit) <|>
+                              compound <|>
+                              prim <|>
+                              failParse "not an expression"
 
         term = fx <|> fy <|> xfx <|> suffix lowerExpr
           where fx = do
@@ -139,6 +133,7 @@ expr prec = do
         xf term = do
           (Operator name _ _) <- oper Xf prec
           return $ Func name [term]
+
         yf term = do
           (Operator name _ _) <- oper Yf prec
           let term' = Func name [term]
@@ -176,6 +171,16 @@ oper opType prec = do
           | opType `elem` [Xf, Yf] = getZf
           | otherwise = getZfz
 
+        getZfz :: String -> SParser (Maybe Operator)
+        getZfz key = lift . gets $ Map.lookup key . zfzMap
+
+        getFz :: String -> SParser (Maybe Operator)
+        getFz key = lift . gets $ Map.lookup key . fzMap
+
+        getZf :: String -> SParser (Maybe Operator)
+        getZf key = lift . gets $ Map.lookup key . zfMap
+
+
 compound :: SParser AstNode
 compound = do
   pred <- prim
@@ -210,9 +215,9 @@ prim = do
     Tk.Str    s -> return $ Str s
     _           -> failParse "not a primitive expression"
 
-----------------------------------------------------------
+------------------------------------------------------------
 -- parser combinators for syntactic parsing
-----------------------------------------------------------
+------------------------------------------------------------
 
 withParen :: SParser AstNode -> SParser AstNode
 withParen p = do
@@ -228,9 +233,9 @@ exactToken target = do
     then return tk
     else failParse $ "expected " ++ show target ++ ", but actually " ++ show tk
 
-----------------------------------------------------------
+------------------------------------------------------------
 -- some atomic parsers
-----------------------------------------------------------
+------------------------------------------------------------
 
 anything :: SParser Token
 anything = parserT $ return . p

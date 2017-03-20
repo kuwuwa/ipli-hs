@@ -97,5 +97,3 @@ initOpData = mkOpData (Map.fromList binaryOperators)
     operOneOf opTypes = (`elem` opTypes) . (\(_, Operator _ _ opT) -> opT)
     makeOperators prec opType = map $ \name -> (name, Operator name prec opType)
     curry3 f (x, y, z) = f x y z
-
-------------------------------

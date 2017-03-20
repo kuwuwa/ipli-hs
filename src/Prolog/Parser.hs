@@ -26,6 +26,8 @@ import qualified Prolog.Token as Tk
 import Prolog.AstNode (AstNode(..))
 import Prolog.Operator (Operator(..), OpState, OpType(..), OpData(..))
 
+import Debug.Trace
+
 ------------------------------------------------------------
 -- token stream
 ------------------------------------------------------------
@@ -55,14 +57,6 @@ type ParseMemo = Map (Index, Prec) (Result AstNode, TokenStream)
 
 type ParseState = State ParseMemo
 
-getMemo :: (Index, Prec) -> SParser AstNode
-getMemo key = do
-  memo <- lift . lift . gets $ Map.lookup key
-  case memo of
-    Nothing -> failParse $ "couldn't remember"
-    Just res -> setResult res
-  where setResult res = parserT $ \_ -> return res
-
 setMemo :: (Index, Prec) -> SParser AstNode -> SParser AstNode
 setMemo key parser = parserT $ \st -> do
   result <- runParserT parser st
@@ -70,7 +64,12 @@ setMemo key parser = parserT $ \st -> do
   return result
 
 withMemo :: (Index, Prec) -> SParser AstNode -> SParser AstNode
-withMemo key parser = getMemo key <|> setMemo key parser
+withMemo key parser = do
+  memo <- lift . lift . gets $ Map.lookup key
+  case memo of
+    Nothing -> setMemo key parser
+    Just res -> setResult res
+  where setResult res = parserT $ \_ -> return res
   
 ----------------------------------------------------------
 -- syntactic parsers for Prolog
@@ -96,8 +95,11 @@ expr prec = do
   where lookahead = parserT $ \st -> do
           (result, _) <- runParserT anything st
           return $ case result of
-                     Fail msg -> (Fail $ "(lookahead)" ++ msg, st)
-                     v        -> (v, st)
+                     Fail msg           -> (Fail $ "no more token", st)
+                     OK Tk.RParen       -> (Fail $ "unexpected `)'", st)
+                     OK Tk.RBracket     -> (Fail $ "unexpected `]'", st)
+                     OK Tk.Bar          -> (Fail $ "unexpected bar", st)
+                     v                  -> (v, st)
 
         term = fx <|> fy <|> xfx <|> suffix (lowerExpr prec)
           where fx = do

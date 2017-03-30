@@ -1,6 +1,6 @@
 module Prolog.Parser (
     TokenStream(..)
-  , SParser
+  , PLParser
   , topLevel
   , expr
   , func
@@ -45,7 +45,7 @@ instance Eq TokenStream where
 -- type definition of syntactic parser
 ------------------------------------------------------------
 
-type SParser = ParserT TokenStream (StateT OpData ParseState)
+type PLParser = ParserT TokenStream (StateT OpData ParseState)
 
 ------------------------------------------------------------
 -- memoization
@@ -57,13 +57,13 @@ type ParseMemo = Map (Index, Prec) (Result AstNode, TokenStream)
 
 type ParseState = State ParseMemo
 
-setMemo :: (Index, Prec) -> SParser AstNode -> SParser AstNode
+setMemo :: (Index, Prec) -> PLParser AstNode -> PLParser AstNode
 setMemo key parser = parserT $ \st -> do
   result <- runParserT parser st
   lift . modify $ Map.insert key result
   return result
 
-withMemo :: (Index, Prec) -> SParser AstNode -> SParser AstNode
+withMemo :: (Index, Prec) -> PLParser AstNode -> PLParser AstNode
 withMemo key parser = do
   memo <- lift . lift . gets $ Map.lookup key
   case memo of
@@ -78,13 +78,13 @@ withMemo key parser = do
 upperPrecLimit = 1200
 lowerPrecLimit = 0
 
-topLevel :: SParser AstNode
+topLevel :: PLParser AstNode
 topLevel = do
   e <- expr upperPrecLimit
   period_
   return e
 
-expr :: Prec -> SParser AstNode
+expr :: Prec -> PLParser AstNode
 expr prec = do
   ind <- index
   result <- withMemo (ind, prec) $ do
@@ -152,7 +152,7 @@ expr0 = do
                       list <|>
                       failParse "not an expression"
 
-func :: SParser AstNode
+func :: PLParser AstNode
 func = do
   pred <- prim
   case pred of
@@ -170,7 +170,7 @@ func = do
       return $ Func a xs
     _ -> failParse "not a func"
 
-list :: SParser AstNode
+list :: PLParser AstNode
 list = do
   lbracket
   (<|>) (rbracket >> (return Nil)) $ do
@@ -182,7 +182,7 @@ list = do
     rbracket
     return $ foldr Pair w (v:vs)
 
-prim :: SParser AstNode
+prim :: PLParser AstNode
 prim = do
   token <- anything
   case token of
@@ -197,14 +197,14 @@ prim = do
 -- helpful parsers
 ------------------------------------------------------------
 
-lowerExpr :: Int -> SParser AstNode
+lowerExpr :: Int -> PLParser AstNode
 lowerExpr prec = do
   prec' <- lift . gets $ Set.lookupLT prec . precs
   case prec' of
     Nothing -> expr0
     Just prec' -> expr prec'
 
-index :: SParser Index
+index :: PLParser Index
 index = parserT $ \st@(TokenStream ind xs) -> return (OK ind, st)
 
 commaSep = do
@@ -213,7 +213,7 @@ commaSep = do
     Tk.Atom "," False -> return ()
     _ -> failParse "not a comma separator"
 
-oper :: OpType -> Int -> SParser Operator
+oper :: OpType -> Int -> PLParser Operator
 oper opType prec = do 
   token <- anything
   case token of
@@ -230,23 +230,23 @@ oper opType prec = do
           | opType `elem` [Xf, Yf] = getZf
           | otherwise = getZfz
 
-        getZfz :: String -> SParser (Maybe Operator)
+        getZfz :: String -> PLParser (Maybe Operator)
         getZfz key = lift . gets $ Map.lookup key . zfzMap
 
-        getFz :: String -> SParser (Maybe Operator)
+        getFz :: String -> PLParser (Maybe Operator)
         getFz key = lift . gets $ Map.lookup key . fzMap
 
-        getZf :: String -> SParser (Maybe Operator)
+        getZf :: String -> PLParser (Maybe Operator)
         getZf key = lift . gets $ Map.lookup key . zfMap
 
-withParen :: SParser AstNode -> SParser AstNode
+withParen :: PLParser AstNode -> PLParser AstNode
 withParen p = do
   lparen
   val <- p
   rparen
   return val
 
-exactToken :: Token -> SParser Token
+exactToken :: Token -> PLParser Token
 exactToken target = do
   tk <- anything
   if tk == target
@@ -257,25 +257,25 @@ exactToken target = do
 -- some atomic parsers
 ------------------------------------------------------------
 
-anything :: SParser Token
+anything :: PLParser Token
 anything = parserT $ return . p
   where p st@(TokenStream _ [])       = (Fail "no more token", st)
         p (TokenStream ind (x:xs)) = (OK x, TokenStream (ind+1) xs)
 
-lparen :: SParser Token
+lparen :: PLParser Token
 lparen = exactToken Tk.LParen
 
-rparen :: SParser Token
+rparen :: PLParser Token
 rparen = exactToken Tk.RParen
 
-lbracket :: SParser Token
+lbracket :: PLParser Token
 lbracket = exactToken Tk.LBracket
 
-rbracket :: SParser Token
+rbracket :: PLParser Token
 rbracket = exactToken Tk.RBracket
 
-period :: SParser Token
+period :: PLParser Token
 period = exactToken Tk.Period
 
-period_ :: SParser ()
+period_ :: PLParser ()
 period_ = period >> return ()

@@ -2,9 +2,10 @@ module Prolog.Operator (
     OpType(..)
   , Operator(..)
   , OpState
-  , OpData(zfzMap, fzMap, zfMap, precs) -- except the constructor
-  , mkOpData
   , OpMap
+  , OpData(zfzMap, fzMap, zfMap, precs) -- except the constructor
+  , addOperator
+  , mkOpData
   , initOpData
   ) where
 
@@ -62,6 +63,15 @@ mkOpData zfzMap' fzMap' zfMap' = OpData {
   , zfMap  = zfMap'
   , precs = Set.fromList . concat $ map (map prec . Map.elems) [zfzMap', fzMap', zfMap']
   } where prec (Operator _ p _) = p
+
+addOperator :: Operator -> OpData -> OpData
+addOperator op@(Operator opName prec opType) opData =
+    mkOpData (updZfz $ zfzMap opData) (updFz $ fzMap opData) (updZf $ zfMap  opData)
+  where insert = Map.insert opName op
+        (updFz, updZf, updZfz)
+          | opType `elem` [Fx, Fy] = (insert, id ,id)
+          | opType `elem` [Xf, Yf] = (id, insert, id)
+          | otherwise              = (id, id, insert)
 
 ------------------------------
 

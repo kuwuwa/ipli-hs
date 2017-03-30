@@ -1,7 +1,6 @@
 module Prolog.AstNode ( AstNode(..) ) where
 
 
-
 data AstNode = Atom String
              | Var String
              | PInt Integer

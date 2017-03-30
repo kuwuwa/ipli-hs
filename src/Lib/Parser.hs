@@ -1,8 +1,8 @@
 module Lib.Parser
   ( Result(..)
   , ParserT(..)
-  , parserT
   , Parser
+  , parserT
   , runParser
   , parser
   , failParser

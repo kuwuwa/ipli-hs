@@ -1,5 +1,7 @@
 module Prolog.Tokenizer (
-    atom
+    tokenize
+  , token
+  , atom
   , var
   , num
   , str
@@ -23,6 +25,19 @@ import Prolog.Token
 ------------------------------------------------------------
 -- tokenizers for Prolog
 ------------------------------------------------------------
+
+tokenize :: String -> (Result [Token], String)
+tokenize code = convert $ flip runParser (StrState code beginPos) $ do
+  tokens <- many token
+  except token (return ()) <|> (token >> return ()) -- raise error if there is a string that couldn't be tokenized
+  return tokens
+    where convert (Fail msg, StrState rest pos) = (Fail (msg ++ show pos), rest)
+          convert (OK val, StrState rest pos) = (OK val, rest)
+
+token :: StrParser Token
+token = foldl1 (<|>) $ map (spaces >>) tokenRules
+  where tokenRules = [period, atom, var, num, str, lparen, rparen, lbracket, rbracket, bar,
+                      failParse "unknown token"]
 
 atom :: StrParser Token
 atom = atomNormal <|> atomSymbols <|> atomQuoted <|> atomOthers <|> failNotAtom

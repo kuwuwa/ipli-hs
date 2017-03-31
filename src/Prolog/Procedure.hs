@@ -6,12 +6,12 @@ module Prolog.Procedure (
 import           Data.Map (Map)
 import qualified Data.Map as Map
 
-import           Prolog.AstNode (AstNode)
+import           Prolog.Node (Node)
 
 type Name = String
 type Arity = Int
 
-type Args = [AstNode]
+type Args = [Node]
 
 type ProcDatabase = Map (Name, Arity) Procedure
 

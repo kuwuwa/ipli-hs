@@ -27,7 +27,7 @@ import           Lib.Parser (ParserT(..), parserT, runParserT, Result(..), failP
 
 import           Prolog.Token    (Token)
 import qualified Prolog.Token    as Tk
-import           Prolog.AstNode  (AstNode(..))
+import           Prolog.Node  (Node(..))
 import           Prolog.Operator (Operator(..), OpState, OpType(..), OpData(..))
 
 import           Debug.Trace
@@ -67,17 +67,17 @@ liftPLParserT = lift . lift . lift
 
 type Prec = Int
 
-type ParseMemo = Map (Index, Prec) (Result AstNode, TokenStream)
+type ParseMemo = Map (Index, Prec) (Result Node, TokenStream)
 
 type ParseState = State ParseMemo
 
-setMemo :: Monad m => (Index, Prec) -> PLParserT m AstNode -> PLParserT m AstNode
+setMemo :: Monad m => (Index, Prec) -> PLParserT m Node -> PLParserT m Node
 setMemo key parser = parserT $ \st -> do
   result <- runParserT parser st
   lift . modify $ Map.insert key result
   return result
 
-withMemo :: Monad m => (Index, Prec) -> PLParserT m AstNode -> PLParserT m AstNode
+withMemo :: Monad m => (Index, Prec) -> PLParserT m Node -> PLParserT m Node
 withMemo key parser = do
   memo <- lift . lift . gets $ Map.lookup key
   case memo of
@@ -92,13 +92,13 @@ withMemo key parser = do
 upperPrecLimit = 1200
 lowerPrecLimit = 0
 
-topLevel :: Monad m => PLParserT m AstNode
+topLevel :: Monad m => PLParserT m Node
 topLevel = do
   e <- expr upperPrecLimit
   period_
   return e
 
-expr :: Monad m => Prec -> PLParserT m AstNode
+expr :: Monad m => Prec -> PLParserT m Node
 expr prec = do
   ind <- index
   result <- withMemo (ind, prec) $ do
@@ -158,7 +158,7 @@ expr prec = do
                   rhs <- lowerExpr prec
                   loop $ Func name [ter, rhs]) <|> return ter
 
-expr0 :: Monad m => PLParserT m AstNode
+expr0 :: Monad m => PLParserT m Node
 expr0 = do
   ind <- index
   withMemo (ind, 0) $ withParen (expr upperPrecLimit) <|>
@@ -167,7 +167,7 @@ expr0 = do
                       list <|>
                       failParse "not an expression"
 
-func :: Monad m => PLParserT m AstNode
+func :: Monad m => PLParserT m Node
 func = do
   pred <- prim
   case pred of
@@ -185,7 +185,7 @@ func = do
       return $ Func a xs
     _ -> failParse "not a func"
 
-list :: Monad m => PLParserT m AstNode
+list :: Monad m => PLParserT m Node
 list = do
   lbracket
   (<|>) (rbracket >> (return Nil)) $ do
@@ -197,7 +197,7 @@ list = do
     rbracket
     return $ foldr Pair w (v:vs)
 
-prim :: Monad m => PLParserT m AstNode
+prim :: Monad m => PLParserT m Node
 prim = do
   token <- anything
   case token of
@@ -212,7 +212,7 @@ prim = do
 -- helpful parsers
 ------------------------------------------------------------
 
-lowerExpr :: Monad m => Int -> PLParserT m AstNode
+lowerExpr :: Monad m => Int -> PLParserT m Node
 lowerExpr prec = do
   prec' <- lift . gets $ Set.lookupLT prec . precs
   case prec' of
@@ -255,7 +255,7 @@ oper opType prec = do
         getZf :: Monad m => String -> PLParserT m (Maybe Operator)
         getZf key = lift . gets $ Map.lookup key . zfMap
 
-withParen :: Monad m => PLParserT m AstNode -> PLParserT m AstNode
+withParen :: Monad m => PLParserT m Node -> PLParserT m Node
 withParen p = do
   lparen
   val <- p

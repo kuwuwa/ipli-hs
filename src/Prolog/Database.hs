@@ -1,5 +1,5 @@
 module Prolog.Database (
-    module Prolog.AstNode
+    module Prolog.Node
   , Database
   , Entry
   , emptyDatabase
@@ -14,7 +14,7 @@ import Control.Monad.Trans.State
 import           Data.Map (Map)
 import qualified Data.Map.Strict as Map
 
-import           Prolog.AstNode (AstNode(..))
+import           Prolog.Node (Node(..))
 
 import           Debug.Trace
 
@@ -25,8 +25,8 @@ type Database = Map (Name, Arity) [(Args, Body)]
 type Name = String
 type Arity = Int
 
-type Args = [AstNode]
-type Body = AstNode
+type Args = [Node]
+type Body = Node
 
 type Entry = ((Name, Arity), (Args, Body))
 
@@ -42,7 +42,7 @@ getPredicates name arity  = do
              Nothing -> []
              Just result -> result
 
-appendClause :: Monad m => AstNode -> StateT Database m (Either String Entry)
+appendClause :: Monad m => Node -> StateT Database m (Either String Entry)
 appendClause node = do
   case parseClause node of
     Left msg -> return $ Left msg
@@ -56,7 +56,7 @@ appendClause node = do
               Just _  -> Map.adjust (++ [val]) key map
 
 
-prependClause :: Monad m => AstNode -> StateT Database m (Either String Entry)
+prependClause :: Monad m => Node -> StateT Database m (Either String Entry)
 prependClause node = do
   case parseClause node of
     Left msg -> return $ Left msg
@@ -66,7 +66,7 @@ prependClause node = do
 
 ------------------------------------------------------------
 
-parseClause :: AstNode -> Either String Entry
+parseClause :: Node -> Either String Entry
 parseClause (Func ":-" [head, body]) =
   case head of
     Func name params -> Right ((name, length params), (params, body))

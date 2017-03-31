@@ -1,20 +1,20 @@
-module Prolog.AstNode ( AstNode(..) ) where
+module Prolog.Node ( Node(..) ) where
 
 
-data AstNode = Atom String
+data Node = Atom String
              | Var String
              | PInt Integer
              | PFloat Double
              | Str String
-             | Func String [AstNode]
+             | Func String [Node]
              | Nil
-             | Pair AstNode AstNode
+             | Pair Node Node
 
 join :: String -> [String] -> String
 join _ [] = ""
 join delim (x:xs) = concat  $ x : zipWith (++) (repeat delim) xs
 
-instance Eq AstNode where
+instance Eq Node where
   Atom a        == Atom b        = a == b
   Var a         == Var b         = a == b
   PInt a        == PInt b        = a == b
@@ -25,7 +25,7 @@ instance Eq AstNode where
   Pair h0 t0    == Pair h1 t1    = (h0, t0) == (h1, t1)
   _             == _             = False
 
-instance Show AstNode where
+instance Show Node where
   show (Atom a)            = "(Atom " ++ show a ++ ")"
   show (Var v)             = "(Var " ++ show v ++ ")"
   show (PInt i)            = "(PInt " ++ show i ++ ")"

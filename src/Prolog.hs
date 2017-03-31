@@ -7,8 +7,8 @@ import           Lib.Combinator (except)
 import           Lib.StringParser (StrState(..), spaces, beginPos)
 
 import           Prolog.Loader      (loadFile)
-import           Prolog.AstNode     (AstNode)
-import qualified Prolog.AstNode     as AstNode
+import           Prolog.Node        (Node)
+import qualified Prolog.Node        as Node
 import           Prolog.Token       (Token)
 import qualified Prolog.Token       as Token
 import           Prolog.Database    (Database, emptyDatabase)
@@ -57,7 +57,7 @@ repl = (fst <$>) $ flip runStateT Prolog.initEnvironment $ do
                    lift $ print asts
                    loop []
 
-        parse :: [Token] -> OpData -> ([AstNode], [Token])
+        parse :: [Token] -> OpData -> ([Node], [Token])
         parse tokens opD = 
           let beginStream = TokenStream 0 tokens
               (((OK nodes, TokenStream _ restTokens), opD'), _) =

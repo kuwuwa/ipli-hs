@@ -13,7 +13,7 @@ import           Lib.Combinator
 import           Lib.Parser
 import           Lib.StringParser
 
-import           Prolog.AstNode  (AstNode(..))
+import           Prolog.Node  (Node(..))
 import           Prolog.Operator 
 import           Prolog.Token    (Token)
 import qualified Prolog.Token    as Tk

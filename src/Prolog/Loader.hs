@@ -42,7 +42,7 @@ loadFile path = do
     
 loadAll :: Monad m => PLParserT (StateT Environment m) ()
 loadAll = do
-  many evalClause
+  many loadClause
   except anything (return ()) <|> failParse "parse failed"
 
 ------------------------------------------------------------
@@ -56,9 +56,9 @@ beginTokenize code =
      then result
      else Fail $ "tokenization failed at " ++ show pos ++ ": " ++ rest
 
-evalClause :: Monad m => PLParserT (StateT Environment m) ()
-evalClause = do
+loadClause :: Monad m => PLParserT (StateT Environment m) ()
+loadClause = do
   clause <- topLevel
-  -- TODO: execute static procedures
+  -- TODO: execute static procedures (:-)
   liftPLParserT . liftDB $ appendClause clause
   return ()

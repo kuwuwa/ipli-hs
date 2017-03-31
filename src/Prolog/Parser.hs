@@ -1,32 +1,36 @@
 module Prolog.Parser (
     TokenStream(..)
+  , PLParserT
   , PLParser
+  , runPLParserT
+  , liftPLParserT
   , topLevel
   , expr
-  , func
-  , prim
-  , expr0
+  , anything
+  , lowerPrecLimit
   , upperPrecLimit
   ) where
 
-import Control.Applicative
-import Control.Monad
-import Control.Monad.Trans.Class
-import Control.Monad.Trans.State
+import           Control.Applicative
+import           Control.Monad
+import           Control.Monad.Trans.Class
+import           Control.Monad.Trans.State
 
-import Data.Map.Strict (Map)
+import           Data.Functor.Identity
+
+import           Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
-import Data.Set (Set)
-import qualified Data.Set as Set
+import           Data.Set        (Set)
+import qualified Data.Set        as Set
 
-import Lib.Parser (ParserT(..), parserT, runParserT, Result(..), failParse)
+import           Lib.Parser (ParserT(..), parserT, runParserT, Result(..), failParse)
 
-import Prolog.Token (Token)
-import qualified Prolog.Token as Tk
-import Prolog.AstNode (AstNode(..))
-import Prolog.Operator (Operator(..), OpState, OpType(..), OpData(..))
+import           Prolog.Token    (Token)
+import qualified Prolog.Token    as Tk
+import           Prolog.AstNode  (AstNode(..))
+import           Prolog.Operator (Operator(..), OpState, OpType(..), OpData(..))
 
-import Debug.Trace
+import           Debug.Trace
 
 ------------------------------------------------------------
 -- token stream
@@ -45,7 +49,17 @@ instance Eq TokenStream where
 -- type definition of syntactic parser
 ------------------------------------------------------------
 
-type PLParser = ParserT TokenStream (StateT OpData ParseState)
+type PLParserT m = ParserT TokenStream (StateT OpData (StateT ParseMemo m))
+
+type PLParser = PLParserT Identity
+
+runPLParserT :: Monad m => PLParserT m a -> TokenStream -> OpData -> m (Result a, TokenStream, OpData)
+runPLParserT p tokens opD = do
+  (((result, tokens'), opD'), _) <- runStateT (runStateT (runParserT p tokens) opD) Map.empty
+  return (result, tokens', opD')
+
+liftPLParserT :: Monad m => m a -> PLParserT m a
+liftPLParserT = lift . lift . lift
 
 ------------------------------------------------------------
 -- memoization
@@ -57,13 +71,13 @@ type ParseMemo = Map (Index, Prec) (Result AstNode, TokenStream)
 
 type ParseState = State ParseMemo
 
-setMemo :: (Index, Prec) -> PLParser AstNode -> PLParser AstNode
+setMemo :: Monad m => (Index, Prec) -> PLParserT m AstNode -> PLParserT m AstNode
 setMemo key parser = parserT $ \st -> do
   result <- runParserT parser st
   lift . modify $ Map.insert key result
   return result
 
-withMemo :: (Index, Prec) -> PLParser AstNode -> PLParser AstNode
+withMemo :: Monad m => (Index, Prec) -> PLParserT m AstNode -> PLParserT m AstNode
 withMemo key parser = do
   memo <- lift . lift . gets $ Map.lookup key
   case memo of
@@ -78,13 +92,13 @@ withMemo key parser = do
 upperPrecLimit = 1200
 lowerPrecLimit = 0
 
-topLevel :: PLParser AstNode
+topLevel :: Monad m => PLParserT m AstNode
 topLevel = do
   e <- expr upperPrecLimit
   period_
   return e
 
-expr :: Prec -> PLParser AstNode
+expr :: Monad m => Prec -> PLParserT m AstNode
 expr prec = do
   ind <- index
   result <- withMemo (ind, prec) $ do
@@ -144,6 +158,7 @@ expr prec = do
                   rhs <- lowerExpr prec
                   loop $ Func name [ter, rhs]) <|> return ter
 
+expr0 :: Monad m => PLParserT m AstNode
 expr0 = do
   ind <- index
   withMemo (ind, 0) $ withParen (expr upperPrecLimit) <|>
@@ -152,7 +167,7 @@ expr0 = do
                       list <|>
                       failParse "not an expression"
 
-func :: PLParser AstNode
+func :: Monad m => PLParserT m AstNode
 func = do
   pred <- prim
   case pred of
@@ -170,7 +185,7 @@ func = do
       return $ Func a xs
     _ -> failParse "not a func"
 
-list :: PLParser AstNode
+list :: Monad m => PLParserT m AstNode
 list = do
   lbracket
   (<|>) (rbracket >> (return Nil)) $ do
@@ -182,7 +197,7 @@ list = do
     rbracket
     return $ foldr Pair w (v:vs)
 
-prim :: PLParser AstNode
+prim :: Monad m => PLParserT m AstNode
 prim = do
   token <- anything
   case token of
@@ -197,23 +212,24 @@ prim = do
 -- helpful parsers
 ------------------------------------------------------------
 
-lowerExpr :: Int -> PLParser AstNode
+lowerExpr :: Monad m => Int -> PLParserT m AstNode
 lowerExpr prec = do
   prec' <- lift . gets $ Set.lookupLT prec . precs
   case prec' of
     Nothing -> expr0
     Just prec' -> expr prec'
 
-index :: PLParser Index
+index :: Monad m => PLParserT m Index
 index = parserT $ \st@(TokenStream ind xs) -> return (OK ind, st)
-
+ 
+commaSep :: Monad m => PLParserT m ()
 commaSep = do
   a <- anything
   case a of
     Tk.Atom "," False -> return ()
     _ -> failParse "not a comma separator"
 
-oper :: OpType -> Int -> PLParser Operator
+oper :: Monad m => OpType -> Int -> PLParserT m Operator
 oper opType prec = do 
   token <- anything
   case token of
@@ -230,23 +246,23 @@ oper opType prec = do
           | opType `elem` [Xf, Yf] = getZf
           | otherwise = getZfz
 
-        getZfz :: String -> PLParser (Maybe Operator)
+        getZfz :: Monad m => String -> PLParserT m (Maybe Operator)
         getZfz key = lift . gets $ Map.lookup key . zfzMap
 
-        getFz :: String -> PLParser (Maybe Operator)
+        getFz :: Monad m => String -> PLParserT m (Maybe Operator)
         getFz key = lift . gets $ Map.lookup key . fzMap
 
-        getZf :: String -> PLParser (Maybe Operator)
+        getZf :: Monad m => String -> PLParserT m (Maybe Operator)
         getZf key = lift . gets $ Map.lookup key . zfMap
 
-withParen :: PLParser AstNode -> PLParser AstNode
+withParen :: Monad m => PLParserT m AstNode -> PLParserT m AstNode
 withParen p = do
   lparen
   val <- p
   rparen
   return val
 
-exactToken :: Token -> PLParser Token
+exactToken :: Monad m => Token -> PLParserT m Token
 exactToken target = do
   tk <- anything
   if tk == target
@@ -257,25 +273,25 @@ exactToken target = do
 -- some atomic parsers
 ------------------------------------------------------------
 
-anything :: PLParser Token
+anything :: Monad m => PLParserT m Token
 anything = parserT $ return . p
   where p st@(TokenStream _ [])       = (Fail "no more token", st)
         p (TokenStream ind (x:xs)) = (OK x, TokenStream (ind+1) xs)
 
-lparen :: PLParser Token
+lparen :: Monad m => PLParserT m Token
 lparen = exactToken Tk.LParen
 
-rparen :: PLParser Token
+rparen :: Monad m => PLParserT m Token
 rparen = exactToken Tk.RParen
 
-lbracket :: PLParser Token
+lbracket :: Monad m => PLParserT m Token
 lbracket = exactToken Tk.LBracket
 
-rbracket :: PLParser Token
+rbracket :: Monad m => PLParserT m Token
 rbracket = exactToken Tk.RBracket
 
-period :: PLParser Token
+period :: Monad m => PLParserT m Token
 period = exactToken Tk.Period
 
-period_ :: PLParser ()
+period_ :: Monad m => PLParserT m ()
 period_ = period >> return ()

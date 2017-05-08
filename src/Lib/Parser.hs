@@ -38,18 +38,17 @@ instance Monad m => Functor (ParserT s m) where
     return $ case res of
                (OK o, st') -> (OK (f o), st')
                (Fail msg, _) -> (Fail msg, st)
+  {-# INLINE fmap #-}
 
 instance Monad m => Applicative (ParserT s m) where
   pure x = parserT $ \st -> return (OK x, st)
+  {-# INLINE pure #-}
   x <*> y = parserT $ \st -> do
     (v, st') <- runParserT x st
     case v of
       Fail msg -> return (Fail msg, st)
-      OK f -> do
-        (w, st'') <- runParserT y st'
-        return $ case w of
-                   Fail msg -> (Fail msg, st)
-                   OK x -> (OK (f x), st'')
+      OK f -> runParserT (f <$> y) st'
+  {-# INLINE (<*>) #-}
 
 instance Monad m => Alternative (ParserT s m) where
   empty = failParser
@@ -59,25 +58,28 @@ instance Monad m => Alternative (ParserT s m) where
     case v of
       Fail _ -> runParserT q st
       _      -> return (v, st')
+  {-# INLINE (<|>) #-}
 
   many p = parserT $ \st -> do
     (v, st') <- runParserT p st
     case v of
       Fail msg -> return (OK [], st)
-      OK v -> do
-        (OK vs, st'') <- runParserT (many p) st'
-        return (OK (v:vs), st'')
+      OK v -> runParserT ((v:) <$> many p) st'
+  {-# INLINE many #-}
 
   some p = fmap (:) p <*> many p
+  {-# INLINE some #-}
 
 instance Monad m => Monad (ParserT s m) where
   return = pure
+  {-# INLINE return #-}
 
   x >>= f = parserT $ \st -> do
     (y, st') <- runParserT x st
     case y of
       Fail msg -> return (Fail msg, st')
       OK v     -> runParserT (f v) st'
+  {-# INLINE (>>=) #-}
 
 instance Monad m => MonadPlus (ParserT s m) where
   mzero = empty

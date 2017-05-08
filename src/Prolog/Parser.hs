@@ -195,7 +195,7 @@ list = do
       lowerExpr 1000
     w <- (exactToken Tk.Bar >> lowerExpr 1000) <|> return Nil
     rbracket
-    return $ foldr Pair w (v:vs)
+    return $ foldr (\a b -> Func "[|]" [a,b]) w (v:vs)
 
 prim :: Monad m => PLParserT m Node
 prim = do

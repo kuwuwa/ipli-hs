@@ -30,6 +30,7 @@ parse parser tokens =
 
 spec :: Spec
 spec = do
+  let pair a b = Func "[|]" [a, b]
   describe "topLevel" $ do
     let parseTopLevel = parse Parser.topLevel
     it "\"1 / 2.\" -> [(Func / (PInt 1) (PInt 2))]" $ do
@@ -81,20 +82,20 @@ spec = do
       let tokens = [Tk.LBracket, Tk.PInt 1, Tk.Atom "," False, Tk.PInt 2, Tk.Atom "," False,
                     Tk.PInt 3, Tk.Atom "," False, Tk.PInt 4, Tk.RBracket, Tk.Period]
       parseTopLevel tokens `shouldBe`
-          (OK $ Pair (PInt 1) (Pair (PInt 2) (Pair (PInt 3) (Pair (PInt 4) Nil) ) ),
+          (OK $ pair (PInt 1) (pair (PInt 2) (pair (PInt 3) (pair (PInt 4) Nil) ) ),
           TokenStream (length tokens) [])
 
     it "[\"foo\", \"bar\" | [7, 5]]." $ do
       let tokens = [Tk.LBracket, Tk.Str "foo", Tk.Atom "," False,Tk.Str "bar", Tk.Bar,
                     Tk.LBracket, Tk.PInt 7, Tk.Atom "," False, Tk.PInt 5, Tk.RBracket, Tk.RBracket, Tk.Period]
       parseTopLevel tokens `shouldBe`
-          (OK $ Pair (Str "foo") (Pair (Str "bar") (Pair (PInt 7) (Pair (PInt 5) Nil) ) ),
+          (OK $ pair (Str "foo") (pair (Str "bar") (pair (PInt 7) (pair (PInt 5) Nil) ) ),
            TokenStream (length tokens) [])
 
     it "[car | cdr]." $ do
       let tokens = [Tk.LBracket, Tk.Atom "car" False, Tk.Bar, Tk.Atom "cdr" False, Tk.RBracket, Tk.Period]
       parseTopLevel tokens `shouldBe`
-          (OK $ Pair (Atom "car") (Atom "cdr"), TokenStream 6 [])
+          (OK $ pair (Atom "car") (Atom "cdr"), TokenStream 6 [])
 
     it "foo(bar, baz(qux))." $ do
       let tokens = [Tk.Atom "foo" False, Tk.LParen, Tk.Atom "bar" False, Tk.Atom "," False,

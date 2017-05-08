@@ -6,9 +6,8 @@ data Node = Atom String
              | PInt Integer
              | PFloat Double
              | Str String
-             | Func String [Node]
              | Nil
-             | Pair Node Node
+             | Func String [Node]
 
 join :: String -> [String] -> String
 join _ [] = ""
@@ -20,9 +19,8 @@ instance Eq Node where
   PInt a        == PInt b        = a == b
   PFloat a      == PFloat b      = a == b
   Str a         == Str b         = a == b
-  Func p0 args0 == Func p1 args1 = (p0, args0) == (p1, args1)
   Nil           == Nil           = True
-  Pair h0 t0    == Pair h1 t1    = (h0, t0) == (h1, t1)
+  Func p0 args0 == Func p1 args1 = (p0, args0) == (p1, args1)
   _             == _             = False
 
 instance Show Node where
@@ -31,9 +29,14 @@ instance Show Node where
   show (PInt i)            = "(PInt " ++ show i ++ ")"
   show (PFloat f)          = "(PFloat " ++ show f ++ ")"
   show (Str s)             = "(Str " ++ s ++ ")"
-  show (Func proc args)    = join " " ("(Func" : proc : map show args) ++ ")"
   show Nil                 = "[]"
-  show (Pair h t)          = "[" ++ show h ++ showCdr t
-    where showCdr Nil        = "]"
-          showCdr (Pair h t) = ", " ++ show h ++ showCdr t
-          showCdr v          = " | " ++ show v ++ "]"
+  show func@(Func proc args)
+    | isPList func = "[" ++ show (head args) ++ showCdr (head $ tail args)
+    | otherwise = join " " ("(Func" : proc : map show args) ++ ")"
+    where isPList (Func proc args) = proc == "[|]" && length args == 2
+          isPList _ = False
+
+          showCdr Nil = "]"
+          showCdr v@(Func proc [h, l])
+            | isPList v = ", " ++ show h ++ showCdr l
+          showCdr v = " | " ++ show v ++ "]"

@@ -1,9 +1,9 @@
 module Lib.Combinator where
 
-import Control.Applicative
+import           Control.Applicative
 
-import Lib.Parser
-import Lib.StringParser
+import           Lib.Parser
+import           Lib.StringParser
 
 option :: Monad m => ParserT s m a -> ParserT s m (Maybe a)
 option p = parserT $ \st -> do

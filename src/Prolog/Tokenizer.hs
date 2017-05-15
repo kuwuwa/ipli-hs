@@ -13,14 +13,14 @@ module Prolog.Tokenizer (
   , bar
   ) where
 
-import Control.Monad
-import Control.Applicative
+import           Control.Monad
+import           Control.Applicative
 
-import Lib.Parser
-import Lib.StringParser
-import Lib.Combinator
+import           Lib.Parser
+import           Lib.StringParser
+import           Lib.Combinator
 
-import Prolog.Token
+import           Prolog.Token
 
 ------------------------------------------------------------
 -- tokenizers for Prolog

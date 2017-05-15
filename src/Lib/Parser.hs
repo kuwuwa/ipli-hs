@@ -9,12 +9,12 @@ module Lib.Parser
   , failParse
   ) where
 
-import Lib.Result (Result(..))
+import           Lib.Result (Result(..))
 
-import Control.Applicative
-import Control.Monad
-import Control.Monad.Trans.Class
-import Data.Functor.Identity
+import           Control.Applicative
+import           Control.Monad
+import           Control.Monad.Trans.Class
+import           Data.Functor.Identity
 
 data ParserT s m o = ParserT { runParserT :: s -> m (Result o, s)  }
 

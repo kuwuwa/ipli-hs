@@ -35,7 +35,6 @@ import           Prolog.Token       (Token)
 import qualified Prolog.Token       as Tk
 import           Prolog.Tokenizer   (token)
 
-import Debug.Trace
 
 loadFile :: FilePath -> StateT (Environment r IO) IO ()
 loadFile path = do

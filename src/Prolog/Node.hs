@@ -1,6 +1,5 @@
 module Prolog.Node ( Node(..) ) where
 
-
 data Node = Atom String
              | Var String
              | PInt Integer

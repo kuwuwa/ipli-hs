@@ -8,8 +8,8 @@ module Prolog.Database (
   , parseClause
   ) where
 
-import Control.Monad
-import Control.Monad.Trans.State
+import           Control.Monad
+import           Control.Monad.Trans.State
 
 import           Data.Map (Map)
 import qualified Data.Map.Strict as Map

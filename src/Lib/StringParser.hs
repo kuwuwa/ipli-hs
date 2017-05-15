@@ -16,11 +16,11 @@ module Lib.StringParser (
   , consume
   ) where
 
-import Control.Monad
-import Control.Applicative
-import Data.Char
+import           Control.Monad
+import           Control.Applicative
+import           Data.Char
 
-import Lib.Parser
+import           Lib.Parser
 
 type StrParser o = Parser StrState o
 

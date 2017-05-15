@@ -15,16 +15,29 @@ import           Lib.Parser       (Result(..), runParser, runParserT, failParse)
 import           Lib.StringParser (StrState(..), beginPos)
 
 import           Prolog.Database    (Database, Entry, appendClause, parseClause)
-import           Prolog.Environment (Environment(..), EnvT, liftDB, liftOpData)
 import           Prolog.Operator    (OpData(..))
-import           Prolog.Parser      (TokenStream(..), PLParser, PLParserT, runPLParserT, liftPLParserT, topLevel, anything)
+import           Prolog.Parser      (
+    TokenStream(..)
+  , PLParser
+  , PLParserT
+  , runPLParserT
+  , liftPLParserT
+  , topLevel
+  , anything
+  )
+import           Prolog.Prover   (
+    Environment(..)
+  , liftDB
+  , liftPredDB
+  , liftOpData
+  )
 import           Prolog.Token       (Token)
 import qualified Prolog.Token       as Tk
 import           Prolog.Tokenizer   (token)
 
 import Debug.Trace
 
-loadFile :: FilePath -> StateT Environment IO ()
+loadFile :: FilePath -> StateT (Environment r IO) IO ()
 loadFile path = do
   content <- lift $ readFile path
   case beginTokenize content of
@@ -40,7 +53,7 @@ loadFile path = do
           putStrLn $ "loading " ++ path ++ " failed at: "
           putStrLn $ show restTokens
     
-loadAll :: Monad m => PLParserT (StateT Environment m) ()
+loadAll :: Monad m => PLParserT (StateT (Environment r m) m) ()
 loadAll = do
   many loadClause
   except anything (return ()) <|> failParse "parse failed"
@@ -56,7 +69,7 @@ beginTokenize code =
      then result
      else Fail $ "tokenization failed at " ++ show pos ++ ": " ++ rest
 
-loadClause :: Monad m => PLParserT (StateT Environment m) ()
+loadClause :: Monad m => PLParserT (StateT (Environment r m) m) ()
 loadClause = do
   clause <- topLevel
   -- TODO: execute static procedures (:-)

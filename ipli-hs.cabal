@@ -15,19 +15,19 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Data.Result
-                     , Lib.Parser
+  exposed-modules:     Lib.Backtrack
                      , Lib.Combinator
+                     , Lib.Parser
+                     , Lib.Result
                      , Lib.StringParser
                      , Prolog
-                     , Prolog.Builtin.Procedure
+                     , Prolog.Builtin.Predicate
                      , Prolog.Database
-                     , Prolog.Environment
                      , Prolog.Loader
                      , Prolog.Node
                      , Prolog.Operator
                      , Prolog.Parser
-                     , Prolog.Procedure
+                     , Prolog.Prover
                      , Prolog.Token
                      , Prolog.Tokenizer
   build-depends:       base >= 4.7 && < 5
@@ -50,6 +50,7 @@ test-suite ipli-hs-test
   hs-source-dirs:      test
   main-is:             Spec.hs
   other-modules:       Prolog.ParserSpec
+                     , Prolog.ProverSpec
                        Prolog.TokenSpec
                      , Prolog.TokenizerSpec
   build-depends:       base

@@ -2,22 +2,22 @@ module Prolog (
     repl
   ) where
 
-import           Lib.Parser (Result(..), runParser, runParserT, failParse)
-import           Lib.Combinator (except)
+import           Lib.Parser       (Result(..), runParser, runParserT, failParse)
+import           Lib.Combinator   (except)
 import           Lib.StringParser (StrState(..), spaces, beginPos)
 
-import           Prolog.Loader      (loadFile)
-import           Prolog.Node        (Node)
-import qualified Prolog.Node        as Node
-import           Prolog.Token       (Token)
-import qualified Prolog.Token       as Token
-import           Prolog.Database    (Database, emptyDatabase)
-import           Prolog.Environment (Environment(..))
-import           Prolog.Operator    (OpData, initOpData)
-import           Prolog.Tokenizer   (tokenize)
-import           Prolog.Parser      (TokenStream(..), topLevel)
+import           Prolog.Loader    (loadFile)
+import           Prolog.Node      (Node)
+import qualified Prolog.Node      as Node
+import           Prolog.Token     (Token)
+import qualified Prolog.Token     as Token
+import           Prolog.Database  (Database, emptyDatabase)
+import           Prolog.Operator  (OpData, initOpData)
+import           Prolog.Parser    (TokenStream(..), topLevel)
+import           Prolog.Prover    (Environment(..))
+import           Prolog.Tokenizer (tokenize)
 
-import           Prolog.Builtin.Procedure (builtinProcedures)
+import           Prolog.Builtin.Predicate (builtinPredicates)
 
 import           Control.Applicative
 import           Control.Monad
@@ -30,8 +30,13 @@ import qualified Data.Map as Map
 import           System.Environment
 import           System.IO
 
-initEnvironment :: Environment
-initEnvironment = Environment { database = Map.empty, procDatabase = builtinProcedures, opData = initOpData }
+initEnvironment :: Environment r m
+initEnvironment = Environment {
+    bindings = Map.empty
+  , database = Map.empty
+  , predDatabase = builtinPredicates
+  , opData = initOpData
+  }
 
 repl :: IO ()
 repl = (fst <$>) $ flip runStateT Prolog.initEnvironment $ do

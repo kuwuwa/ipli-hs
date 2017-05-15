@@ -1,8 +1,8 @@
 module Prolog.Database (
-    module Prolog.Node
-  , Database
+    Database
   , Entry
   , emptyDatabase
+  , getPredicates
   , appendClause
   , prependClause
   , parseClause

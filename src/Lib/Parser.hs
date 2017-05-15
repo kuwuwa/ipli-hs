@@ -9,7 +9,7 @@ module Lib.Parser
   , failParse
   ) where
 
-import Data.Result (Result(..))
+import Lib.Result (Result(..))
 
 import Control.Applicative
 import Control.Monad

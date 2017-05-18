@@ -2,6 +2,7 @@ module Lib.Backtrack (
     BResult(..) 
   , BacktrackT(..)
   , failWith
+  , fatalWith
   ) where
 
 import           Control.Applicative
@@ -40,10 +41,10 @@ instance Applicative (BacktrackT r m) where
 instance Monad m => Alternative (BacktrackT r m) where
   empty = BacktrackT $ \_ -> return (Fail "empty")
 
-  x <|> y = BacktrackT $ \k -> runBacktrackT x $ \w -> do
-    v <- k w
+  x <|> y = BacktrackT $ \k -> do
+    v <- runBacktrackT x k
     case v of
-      OK r      -> return $ OK r
+      OK r      -> return v
       Fail _    -> runBacktrackT y k
       Fatal msg -> return $ Fatal msg
 
@@ -60,6 +61,9 @@ instance MonadTrans (BacktrackT r) where
 
 failWith :: Monad m => String -> BacktrackT r m a
 failWith msg = BacktrackT $ \_ -> return (Fail msg)
+
+fatalWith :: Monad m => String -> BacktrackT r m a
+fatalWith msg = BacktrackT $ \_ -> return (Fatal msg)
 
 cut :: Monad m => BacktrackT r m ()
 cut = BacktrackT $ \k -> do

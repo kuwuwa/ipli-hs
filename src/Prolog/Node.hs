@@ -1,16 +1,14 @@
-module Prolog.Node ( Node(..) ) where
+module Prolog.Node (
+    Node(..)
+  ) where
 
 data Node = Atom String
-             | Var String
-             | PInt Integer
-             | PFloat Double
-             | Str String
-             | Nil
-             | Func String [Node]
-
-join :: String -> [String] -> String
-join _ [] = ""
-join delim (x:xs) = concat  $ x : zipWith (++) (repeat delim) xs
+          | Var String
+          | PInt Integer
+          | PFloat Double
+          | Str String
+          | Nil
+          | Func String [Node]
 
 instance Eq Node where
   Atom a        == Atom b        = a == b
@@ -39,3 +37,6 @@ instance Show Node where
           showCdr v@(Func proc [h, l])
             | isPList v = ", " ++ show h ++ showCdr l
           showCdr v = " | " ++ show v ++ "]"
+
+          join _ [] = ""
+          join delim (x:xs) = concat  $ x : zipWith (++) (repeat delim) xs

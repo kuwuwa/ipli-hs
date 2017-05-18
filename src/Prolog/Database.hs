@@ -55,7 +55,6 @@ appendClause node = do
               Nothing -> Map.insert key [val] map
               Just _  -> Map.adjust (++ [val]) key map
 
-
 prependClause :: Monad m => Node -> StateT Database m (Either String Entry)
 prependClause node = do
   case parseClause node of

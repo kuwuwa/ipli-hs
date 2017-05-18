@@ -35,6 +35,7 @@ initEnvironment = Environment {
     bindings = Map.empty
   , database = Map.empty
   , predDatabase = builtinPredicates
+  , varNum = 0
   , opData = initOpData
   }
 

@@ -11,11 +11,19 @@ module Prolog.Prover (
   , liftPredDB
   , liftOpData
   , bind
+  , call
+  , fresh
   , resolve
   , unify
+  , assertAtom
+  , assertPInt
+  , assertPFloat
+  , assertStr
+  , assertNil
+  , assertFunc
   ) where
 
-import           Lib.Backtrack (BacktrackT, failWith)
+import           Lib.Backtrack (BacktrackT(..), failWith, fatalWith)
 
 import           Prolog.Database (Database)
 import           Prolog.Node     (Node(..))
@@ -26,12 +34,14 @@ import           Control.Applicative ((<|>), empty)
 import           Control.Monad
 import           Control.Monad.IO.Class    (MonadIO(..))
 import           Control.Monad.Trans.Class (lift)
-import           Control.Monad.Trans.State (State, StateT(..), gets, modify)
+import           Control.Monad.Trans.State (State, StateT(..), evalStateT, gets, modify)
 
 import           Data.Maybe (fromJust, isJust)
 
 import           Data.Map (Map)
 import qualified Data.Map as Map
+
+import           Debug.Trace
 
 ------------------------------------------------------------
 
@@ -54,6 +64,7 @@ data Environment r m = Environment {
     bindings :: Bindings
   , database :: Database
   , predDatabase :: Map (Name, Arity) (Predicate r m)
+  , varNum :: Int
   , opData :: OpData
 }
 
@@ -84,13 +95,42 @@ liftOpData m = StateT $ \env -> do
 liftBindingsP :: Monad m => StateT Bindings m o -> ProverT r m o
 liftBindingsP = lift . liftBindings
 
+call :: Monad m => Node -> ProverT r m ()
+call node = do
+  assertCallable node
+  let (name, args) = case node of
+        Atom name -> (name, [])
+        Func p a  -> (p, a)
+      arity = length args
+  procMaybe <- lift $ gets (Map.lookup (name, arity) . predDatabase)
+  case procMaybe of
+    Just proc -> proc args -- 1. execute built-in procedure if it exists
+    Nothing -> do          -- 2. otherwise pick predicates from the database
+      entriesMaybe <- lift $ gets (Map.lookup (name, arity) . database)
+      case entriesMaybe of
+        Nothing -> fatalWith $ "no such predicate: "  ++ name
+        Just entries -> foldr (<|>) failNoAnswer $ map (exec args) entries
+  where
+    exec args p@(params, _) = do
+      (fParams, fBody) <- fresh p
+      -- bind existing vars and newly generated vars
+      foldr (>>) (return ()) (zipWith bind fParams args)
+      call fBody
+        <|> (mapM_ unbind fParams >> mapM_ unbind args >> failWith "proceed to next choice")
+
+    unbind (Var p) = do
+      liftBindingsP $ modify (Map.delete p)
+    unbind _       = return ()
+
+    failNoAnswer = failWith "no answer"
+
 resolve :: Monad m => Node -> ProverT r m Node
 resolve node = do
   case node of
     Var x -> do
       valMaybe <- liftBindingsP . gets $ Map.lookup x
       if not $ isJust valMaybe then do
-        bind node node
+        liftBindingsP . modify $ Map.insert x (Var x)
         return node
       else do
         let val = fromJust valMaybe
@@ -99,20 +139,23 @@ resolve node = do
             | y == x    -> return val
             | otherwise -> do
               val' <- resolve val
-              bind node val'
+              liftBindingsP . modify $ Map.insert x val'
               return val'
           _ -> return val
+    Func name args -> Func name <$> mapM resolve args
     _ -> return node
 
 bind :: Monad m => Node -> Node -> ProverT r m ()
 bind x y = do
-  case (x, y) of
+  x' <- resolve x
+  y' <- resolve y
+  case (x', y') of
     (Var xv, _)
       | xv == "_" -> return () -- _ should not be bound to any value
-      | otherwise -> liftBindingsP . modify $ Map.insert xv y
+      | otherwise -> liftBindingsP . modify $ Map.insert xv y'
     (_, Var yv)
       | yv == "_" -> return () -- _ should not be bound to any value
-      | otherwise -> liftBindingsP . modify $ Map.insert yv x
+      | otherwise -> liftBindingsP . modify $ Map.insert yv x'
     _ -> failWith "can't bind two nonvars"
 
 unify :: Monad m => Node -> Node -> ProverT r m ()
@@ -122,7 +165,92 @@ unify x y = do
   bind x' y' <|> case (x', y') of
     (Func p0 a0, Func p1 a1) -> do
       when (p0 /= p1) $ failWith ("can't unify " ++ show x' ++ " and " ++ show y')
-      foldr1 (>>) $ zipWith unify a0 a1
+      sequence_ $ zipWith unify a0 a1
     _
       | x' == y'  -> return ()
       | otherwise -> failWith $ "can't unify " ++ show x' ++ " and " ++ show y'
+
+fresh :: Monad m => ([Node], Node) -> ProverT r m ([Node], Node)
+fresh (params, body) = do
+  fParams <- mkRenames params
+  let renames = map (\(Var v, Var fv) -> (v, fv)) $ filter (isVar . fst) (zip params fParams)
+  fBody <- evalStateT (go body) (Map.fromList renames)
+  return (fParams, fBody)
+  where isVar (Var _) = True
+        isVar _       = False
+
+        assocToFreshVar (Var name) = do
+          newVar <- freshVar
+          return (name, newVar)
+
+        mkRenames = mapM $ \nd -> case nd of
+          Var v -> Var <$> freshVar
+          _ -> return nd
+
+        go body = case body of
+          Var v -> do
+            wMaybe <- gets $ Map.lookup v
+            case wMaybe of
+              Just w -> return $ Var w
+              Nothing -> do
+                newVar <- lift freshVar
+                modify $ Map.insert v newVar
+                return $ Var newVar
+          Func p args -> Func p <$> mapM go args
+          _ -> return body
+
+        freshVar :: Monad m => ProverT r m String
+        freshVar = do
+          num <- lift (gets varNum)
+          let newVar = "_G" ++ show num
+          exists <- liftBindingsP $ gets (Map.member newVar)
+          lift . modify $ \env -> env { varNum = num + 1 }
+          if exists then freshVar else return newVar
+
+------------------------------------------------------------
+-- handy functions
+------------------------------------------------------------
+
+assertAtom :: Monad m => Node -> ProverT r m ()
+assertAtom node = case node of
+  Atom _ -> return ()
+  _      -> fatalWith $ "atom expected, but got " ++ getNodeType node
+
+assertPInt :: Monad m => Node -> ProverT r m ()
+assertPInt node = case node of
+  PInt _ -> return ()
+  _      -> fatalWith $ "integer expected, but got " ++ getNodeType node
+
+assertPFloat :: Monad m => Node -> ProverT r m ()
+assertPFloat node = case node of
+  PFloat _ -> return ()
+  _        -> fatalWith $ "float expected, but got " ++ getNodeType node
+
+assertStr :: Monad m => Node -> ProverT r m ()
+assertStr node = case node of
+  Str _ -> return ()
+  _     -> fatalWith $ "string expected, but got " ++ getNodeType node
+
+assertNil :: Monad m => Node -> ProverT r m ()
+assertNil node = case node of
+  Nil -> return ()
+  _   -> fatalWith $ "nil expected, but got " ++ getNodeType node
+
+assertFunc :: Monad m => Node -> ProverT r m ()
+assertFunc node = case node of
+  Func _ _ -> return ()
+  _        -> fatalWith $ "functor expected, but got " ++ getNodeType node
+
+assertCallable :: Monad m => Node -> ProverT r m ()
+assertCallable node = case node of
+  Atom _   -> return ()
+  Func _ _ -> return ()
+  _        -> fatalWith $ "callable expected, but got " ++ getNodeType node
+
+getNodeType :: Node -> String
+getNodeType (Atom _)   = "atom"
+getNodeType (PInt _)   = "integer"
+getNodeType (PFloat _) = "float"
+getNodeType (Str _)    = "string"
+getNodeType Nil        = "nil"
+getNodeType (Func _ _) = "functor"

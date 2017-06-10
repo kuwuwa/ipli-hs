@@ -83,7 +83,7 @@ initOpData = mkOpData (Map.fromList binaryOperators)
   where
     operators = concat . map (curry3 makeOperators) $ [
         (1200, Xfx, ["-->", ":-"])
-      , (1200, Fx,  ["-", "?-"])
+      , (1200, Fx,  [":-", "?-"])
       , (1100, Xfy, [";", "|"])
       , (1050, Xfy, ["->", "*->"])
       , (1000, Xfy, [","])

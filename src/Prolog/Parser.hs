@@ -3,6 +3,7 @@ module Prolog.Parser (
   , PLParserT
   , PLParser
   , runPLParserT
+  , runPLParser
   , liftPLParserT
   , topLevel
   , expr
@@ -53,10 +54,14 @@ type PLParserT m = ParserT TokenStream (StateT OpData (StateT ParseMemo m))
 
 type PLParser = PLParserT Identity
 
-runPLParserT :: Monad m => PLParserT m a -> TokenStream -> OpData -> m (Result a, TokenStream, OpData)
+runPLParserT :: Monad m =>
+  PLParserT m a -> TokenStream -> OpData -> m (Result a, TokenStream, OpData)
 runPLParserT p tokens opD = do
   (((result, tokens'), opD'), _) <- runStateT (runStateT (runParserT p tokens) opD) Map.empty
   return (result, tokens', opD')
+
+runPLParser :: PLParserT Identity a -> TokenStream -> OpData -> (Result a, TokenStream, OpData)
+runPLParser p tokens opD = runIdentity (runPLParserT p tokens opD)
 
 liftPLParserT :: Monad m => m a -> PLParserT m a
 liftPLParserT = lift . lift . lift

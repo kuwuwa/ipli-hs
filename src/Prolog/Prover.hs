@@ -103,13 +103,11 @@ call node = do
         Func p a  -> (p, a)
       arity = length args
   procMaybe <- lift $ gets (Map.lookup (name, arity) . predDatabase)
-  case procMaybe of
-    Just proc -> proc args -- 1. execute built-in procedure if it exists
-    Nothing -> do          -- 2. otherwise pick predicates from the database
-      entriesMaybe <- lift $ gets (Map.lookup (name, arity) . database)
-      case entriesMaybe of
-        Nothing -> fatalWith $ "no such predicate: "  ++ name
-        Just entries -> foldr (<|>) failNoAnswer $ map (exec args) entries
+  entriesMaybe <- lift $ gets (Map.lookup (name, arity) . database)
+  case (procMaybe, entriesMaybe) of
+    (Just proc, _) -> proc args
+    (_, Just entries) -> foldr (<|>) failNoAnswer $ map (exec args) entries
+    _ -> fatalWith $ "no such predicate: " ++ name
   where
     exec args p@(params, _) = do
       (fParams, fBody) <- fresh p

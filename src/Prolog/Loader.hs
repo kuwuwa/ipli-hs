@@ -2,6 +2,31 @@ module Prolog.Loader (
     loadFile
   ) where
 
+
+import           Prolog.Database    (Database, Entry, appendClause, parseClause)
+import           Prolog.Operator    (OpData(..))
+import           Prolog.Parser (
+    TokenStream(..)
+  , PLParser
+  , PLParserT
+  , runPLParserT
+  , liftPLParserT
+  , topLevel
+  , anything
+  )
+import           Prolog.Prover (
+    ProverT
+  , Environment(..)
+  , liftDB
+  , liftPredDB
+  , liftOpData
+  , call
+  )
+import           Prolog.Node        (Node(..))
+import           Prolog.Token       (Token)
+import qualified Prolog.Token       as Tk
+import           Prolog.Tokenizer   (token)
+
 import           Control.Applicative
 import           Control.Monad
 import           Control.Monad.Trans.Class
@@ -13,30 +38,10 @@ import qualified Data.Map as Map
 import           Lib.Combinator   (except)
 import           Lib.Parser       (Result(..), runParser, runParserT, failParse)
 import           Lib.StringParser (StrState(..), beginPos)
+import           Lib.Backtrack    (runBacktrackT, failWith)
+import qualified Lib.Backtrack    as B
 
-import           Prolog.Database    (Database, Entry, appendClause, parseClause)
-import           Prolog.Operator    (OpData(..))
-import           Prolog.Parser      (
-    TokenStream(..)
-  , PLParser
-  , PLParserT
-  , runPLParserT
-  , liftPLParserT
-  , topLevel
-  , anything
-  )
-import           Prolog.Prover   (
-    Environment(..)
-  , liftDB
-  , liftPredDB
-  , liftOpData
-  )
-import           Prolog.Token       (Token)
-import qualified Prolog.Token       as Tk
-import           Prolog.Tokenizer   (token)
-
-
-loadFile :: FilePath -> StateT (Environment r IO) IO ()
+loadFile :: FilePath -> StateT (Environment () IO) IO ()
 loadFile path = do
   content <- lift $ readFile path
   case beginTokenize content of
@@ -52,7 +57,7 @@ loadFile path = do
           putStrLn $ "loading " ++ path ++ " failed at: "
           putStrLn $ show restTokens
     
-loadAll :: Monad m => PLParserT (StateT (Environment r m) m) ()
+loadAll :: Monad m => PLParserT (StateT (Environment () m) m) ()
 loadAll = do
   many loadClause
   except anything (return ()) <|> failParse "parse failed"
@@ -68,9 +73,12 @@ beginTokenize code =
      then result
      else Fail $ "tokenization failed at " ++ show pos ++ ": " ++ rest
 
-loadClause :: Monad m => PLParserT (StateT (Environment r m) m) ()
+loadClause :: Monad m => PLParserT (StateT (Environment () m) m) ()
 loadClause = do
   clause <- topLevel
   -- TODO: execute static procedures (:-)
-  liftPLParserT . liftDB $ appendClause clause
-  return ()
+  case clause of
+    Func ":-"  [node] -> do
+      liftPLParserT $ runBacktrackT (call node) (return . B.OK)
+      return ()
+    _ -> liftPLParserT . liftDB $ appendClause clause >> return ()

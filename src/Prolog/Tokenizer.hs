@@ -29,7 +29,9 @@ import           Prolog.Token
 tokenize :: String -> (Result [Token], String)
 tokenize code = convert $ flip runParser (StrState code beginPos) $ do
   tokens <- many token
-  except token (return ()) <|> (token >> return ()) -- raise error if there is a string that couldn't be tokenized
+  many $ space <|> (exact '\n' >> return ()) -- XX: hard-coding
+  -- raise error if there is a string that couldn't be tokenized
+  except (char >> return ()) (return ()) <|> (token >> return ())
   return tokens
     where convert (Fail msg, StrState rest pos) = (Fail (msg ++ show pos), rest)
           convert (OK val, StrState rest pos) = (OK val, rest)

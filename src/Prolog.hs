@@ -50,8 +50,6 @@ repl = (fst <$>) $ flip runStateT initEnvironment $ do
     loadFile fileName
   lift (hSetBuffering stdin LineBuffering) >> loop []
   where loop restTokens = do
-          -- db <- gets database
-          -- lift $ print db
           lift $ putStr "IPLI > " >> hFlush stdout
           eof <- lift isEOF
           if eof then lift $ putStrLn "bye"
@@ -63,7 +61,7 @@ repl = (fst <$>) $ flip runStateT initEnvironment $ do
                 loop []
               OK tokens -> do
                 (asts, restTokens') <- parse (restTokens ++ tokens) <$> gets opData
-                runBacktrackT (foldr (>>) (return ()) (map execClause asts)) (return . Backtrack.OK)
+                runBacktrackT (sequence_ $ map execClause asts) (return . Backtrack.OK)
 
                 let dropUnparsed rest = do
                       let rest' = dropWhile (/= Token.Period) rest

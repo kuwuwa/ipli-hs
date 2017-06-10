@@ -3,6 +3,7 @@ module Lib.Backtrack (
   , BacktrackT(..)
   , failWith
   , fatalWith
+  , defer
   ) where
 
 import           Control.Applicative
@@ -72,3 +73,8 @@ cut = BacktrackT $ \k -> do
     OK v      -> OK v
     Fail msg  -> Fatal $ "[cut]" ++ msg
     _         -> res
+
+defer :: Monad m => BacktrackT r m b -> BacktrackT r m ()
+defer p = BacktrackT $ \k -> do
+  res <- k ()
+  runBacktrackT p $ \_ -> return res

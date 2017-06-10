@@ -23,7 +23,7 @@ module Prolog.Prover (
   , assertFunc
   ) where
 
-import           Lib.Backtrack (BacktrackT(..), failWith, fatalWith)
+import           Lib.Backtrack (BResult(..), BacktrackT(..), failWith, fatalWith, defer)
 
 import           Prolog.Database (Database)
 import           Prolog.Node     (Node(..))
@@ -109,12 +109,12 @@ call node = do
     (_, Just entries) -> foldr (<|>) failNoAnswer $ map (exec args) entries
     _ -> fatalWith $ "no such predicate: " ++ name
   where
-    exec args p@(params, _) = do
+    exec args p = do
       (fParams, fBody) <- fresh p
-      -- bind existing vars and newly generated vars
-      foldr (>>) (return ()) (zipWith bind fParams args)
-      call fBody
-        <|> (mapM_ unbind fParams >> mapM_ unbind args >> failWith "proceed to next choice")
+      -- defer $ mapM_ unbind args
+      -- defer $ mapM_ unbind fParams
+      sequence_ $ zipWith unify args fParams
+      call $ fBody
 
     unbind (Var p) = do
       liftBindingsP $ modify (Map.delete p)
@@ -150,20 +150,26 @@ bind x y = do
   case (x', y') of
     (Var xv, _)
       | xv == "_" -> return () -- _ should not be bound to any value
-      | otherwise -> liftBindingsP . modify $ Map.insert xv y'
+      | otherwise -> do
+        defer (liftBindingsP $ modify (Map.delete xv))
+        liftBindingsP . modify $ Map.insert xv y'
     (_, Var yv)
       | yv == "_" -> return () -- _ should not be bound to any value
-      | otherwise -> liftBindingsP . modify $ Map.insert yv x'
+      | otherwise -> do
+        defer (liftBindingsP $ modify (Map.delete yv))
+        liftBindingsP . modify $ Map.insert yv x'
     _ -> failWith "can't bind two nonvars"
 
 unify :: Monad m => Node -> Node -> ProverT r m ()
 unify x y = do
   x' <- resolve x
   y' <- resolve y
-  bind x' y' <|> case (x', y') of
+  case (x', y') of
     (Func p0 a0, Func p1 a1) -> do
       when (p0 /= p1) $ failWith ("can't unify " ++ show x' ++ " and " ++ show y')
       sequence_ $ zipWith unify a0 a1
+    (Var _, _) -> bind x' y'
+    (_, Var _) -> bind x' y'
     _
       | x' == y'  -> return ()
       | otherwise -> failWith $ "can't unify " ++ show x' ++ " and " ++ show y'
@@ -247,6 +253,7 @@ assertCallable node = case node of
 
 getNodeType :: Node -> String
 getNodeType (Atom _)   = "atom"
+getNodeType (Var _)    = "variable"
 getNodeType (PInt _)   = "integer"
 getNodeType (PFloat _) = "float"
 getNodeType (Str _)    = "string"

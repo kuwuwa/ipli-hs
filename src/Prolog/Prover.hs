@@ -21,6 +21,7 @@ module Prolog.Prover (
   , assertStr
   , assertNil
   , assertFunc
+  , typeOf
   ) where
 
 import           Lib.Backtrack (BResult(..), BacktrackT(..), failWith, fatalWith, defer)
@@ -218,44 +219,44 @@ fresh (params, body) = do
 assertAtom :: Monad m => Node -> ProverT r m ()
 assertAtom node = case node of
   Atom _ -> return ()
-  _      -> fatalWith $ "atom expected, but got " ++ getNodeType node
+  _      -> fatalWith $ "atom expected, but got " ++ typeOf node
 
 assertPInt :: Monad m => Node -> ProverT r m ()
 assertPInt node = case node of
   PInt _ -> return ()
-  _      -> fatalWith $ "integer expected, but got " ++ getNodeType node
+  _      -> fatalWith $ "integer expected, but got " ++ typeOf node
 
 assertPFloat :: Monad m => Node -> ProverT r m ()
 assertPFloat node = case node of
   PFloat _ -> return ()
-  _        -> fatalWith $ "float expected, but got " ++ getNodeType node
+  _        -> fatalWith $ "float expected, but got " ++ typeOf node
 
 assertStr :: Monad m => Node -> ProverT r m ()
 assertStr node = case node of
   Str _ -> return ()
-  _     -> fatalWith $ "string expected, but got " ++ getNodeType node
+  _     -> fatalWith $ "string expected, but got " ++ typeOf node
 
 assertNil :: Monad m => Node -> ProverT r m ()
 assertNil node = case node of
   Nil -> return ()
-  _   -> fatalWith $ "nil expected, but got " ++ getNodeType node
+  _   -> fatalWith $ "nil expected, but got " ++ typeOf node
 
 assertFunc :: Monad m => Node -> ProverT r m ()
 assertFunc node = case node of
   Func _ _ -> return ()
-  _        -> fatalWith $ "functor expected, but got " ++ getNodeType node
+  _        -> fatalWith $ "functor expected, but got " ++ typeOf node
 
 assertCallable :: Monad m => Node -> ProverT r m ()
 assertCallable node = case node of
   Atom _   -> return ()
   Func _ _ -> return ()
-  _        -> fatalWith $ "callable expected, but got " ++ getNodeType node
+  _        -> fatalWith $ "callable expected, but got " ++ typeOf node
 
-getNodeType :: Node -> String
-getNodeType (Atom _)   = "atom"
-getNodeType (Var _)    = "variable"
-getNodeType (PInt _)   = "integer"
-getNodeType (PFloat _) = "float"
-getNodeType (Str _)    = "string"
-getNodeType Nil        = "nil"
-getNodeType (Func _ _) = "functor"
+typeOf :: Node -> String
+typeOf (Atom _)   = "atom"
+typeOf (Var _)    = "variable"
+typeOf (PInt _)   = "integer"
+typeOf (PFloat _) = "float"
+typeOf (Str _)    = "string"
+typeOf Nil        = "nil"
+typeOf (Func _ _) = "functor"

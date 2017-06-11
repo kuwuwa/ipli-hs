@@ -2,7 +2,6 @@ module Lib.Parser
   ( Result(..)
   , ParserT(..)
   , Parser
-  , parserT
   , runParser
   , parser
   , failParser
@@ -20,20 +19,17 @@ data ParserT s m o = ParserT { runParserT :: s -> m (Result o, s)  }
 
 type Parser s o = ParserT s Identity o
 
-parserT :: (s -> m (Result o, s)) -> ParserT s m o
-parserT = ParserT
-
 runParser :: Parser s o -> s -> (Result o, s)
 runParser p st = runIdentity $ runParserT p st
 
 parser :: (s -> (Result o, s)) -> Parser s o
-parser f = parserT (Identity . f)
+parser f = ParserT (Identity . f)
 
 failParser :: (Monad m) => ParserT s m o
-failParser = parserT $ \st -> return (Fail "failParser", st)
+failParser = ParserT $ \st -> return (Fail "failParser", st)
 
 instance Monad m => Functor (ParserT s m) where
-  fmap f p = parserT $ \st -> do
+  fmap f p = ParserT $ \st -> do
     res <- runParserT p st
     return $ case res of
                (OK o, st') -> (OK (f o), st')
@@ -41,9 +37,9 @@ instance Monad m => Functor (ParserT s m) where
   {-# INLINE fmap #-}
 
 instance Monad m => Applicative (ParserT s m) where
-  pure x = parserT $ \st -> return (OK x, st)
+  pure x = ParserT $ \st -> return (OK x, st)
   {-# INLINE pure #-}
-  x <*> y = parserT $ \st -> do
+  x <*> y = ParserT $ \st -> do
     (v, st') <- runParserT x st
     case v of
       Fail msg -> return (Fail msg, st)
@@ -53,14 +49,14 @@ instance Monad m => Applicative (ParserT s m) where
 instance Monad m => Alternative (ParserT s m) where
   empty = failParser
 
-  p <|> q = parserT $ \st -> do
+  p <|> q = ParserT $ \st -> do
     (v, st') <- runParserT p st
     case v of
       Fail _ -> runParserT q st
       _      -> return (v, st')
   {-# INLINE (<|>) #-}
 
-  many p = parserT $ \st -> do
+  many p = ParserT $ \st -> do
     (v, st') <- runParserT p st
     case v of
       Fail msg -> return (OK [], st)
@@ -74,10 +70,10 @@ instance Monad m => Monad (ParserT s m) where
   return = pure
   {-# INLINE return #-}
 
-  x >>= f = parserT $ \st -> do
+  x >>= f = ParserT $ \st -> do
     (y, st') <- runParserT x st
     case y of
-      Fail msg -> return (Fail msg, st')
+      Fail msg -> return (Fail msg, st)
       OK v     -> runParserT (f v) st'
   {-# INLINE (>>=) #-}
 
@@ -89,9 +85,9 @@ instance Monad m => MonadPlus (ParserT s m) where
 
 instance MonadTrans (ParserT s) where
   -- lift :: (Monad m) => m a -> ParserT s m a
-  lift m = parserT $ \st -> do
+  lift m = ParserT $ \st -> do
     v <- m
     return (OK v, st)
 
 failParse :: Monad m => String -> ParserT s m a
-failParse msg = parserT $ \st -> return (Fail msg, st)
+failParse msg = ParserT $ \st -> return (Fail msg, st)

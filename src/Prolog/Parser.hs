@@ -24,7 +24,7 @@ import qualified Data.Map.Strict as Map
 import           Data.Set        (Set)
 import qualified Data.Set        as Set
 
-import           Lib.Parser (ParserT(..), parserT, runParserT, Result(..), failParse)
+import           Lib.Parser (ParserT(..), runParserT, Result(..), failParse)
 
 import           Prolog.Token    (Token)
 import qualified Prolog.Token    as Tk
@@ -77,7 +77,7 @@ type ParseMemo = Map (Index, Prec) (Result Node, TokenStream)
 type ParseState = State ParseMemo
 
 setMemo :: Monad m => (Index, Prec) -> PLParserT m Node -> PLParserT m Node
-setMemo key parser = parserT $ \st -> do
+setMemo key parser = ParserT $ \st -> do
   result <- runParserT parser st
   lift . modify $ Map.insert key result
   return result
@@ -88,7 +88,7 @@ withMemo key parser = do
   case memo of
     Nothing -> setMemo key parser
     Just res -> setResult res
-  where setResult res = parserT $ \_ -> return res
+  where setResult res = ParserT $ \_ -> return res
   
 ----------------------------------------------------------
 -- syntactic parsers for Prolog
@@ -111,7 +111,7 @@ expr prec = do
     l0 <- lassoc
     yf l0 <|> return l0
   return result
-  where lookahead = parserT $ \st -> do
+  where lookahead = ParserT $ \st -> do
           (result, _) <- runParserT anything st
           return $ case result of
                      Fail msg           -> (Fail $ "no more token", st)
@@ -225,7 +225,7 @@ lowerExpr prec = do
     Just prec' -> expr prec'
 
 index :: Monad m => PLParserT m Index
-index = parserT $ \st@(TokenStream ind xs) -> return (OK ind, st)
+index = ParserT $ \st@(TokenStream ind xs) -> return (OK ind, st)
  
 commaSep :: Monad m => PLParserT m ()
 commaSep = do
@@ -279,7 +279,7 @@ exactToken target = do
 ------------------------------------------------------------
 
 anything :: Monad m => PLParserT m Token
-anything = parserT $ return . p
+anything = ParserT $ return . p
   where p st@(TokenStream _ [])       = (Fail "no more token", st)
         p (TokenStream ind (x:xs)) = (OK x, TokenStream (ind+1) xs)
 

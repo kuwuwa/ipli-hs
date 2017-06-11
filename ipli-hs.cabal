@@ -28,6 +28,7 @@ library
                      , Prolog.Operator
                      , Prolog.Parser
                      , Prolog.Prover
+                     , Prolog.Repl
                      , Prolog.Token
                      , Prolog.Tokenizer
   build-depends:       base >= 4.7 && < 5

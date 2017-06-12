@@ -16,7 +16,6 @@ module Lib.StringParser (
   , consume
   ) where
 
-import           Control.Monad
 import           Control.Applicative
 import           Data.Char
 
@@ -30,8 +29,8 @@ instance Eq StrState where
   StrState s0 p0 == StrState s1 p1 = s0 == s1 && p0 == p1
 
 instance Show StrState where
-  show (StrState str (Pos line col)) =
-    "StrState{line: "  ++ show line ++ ", col: " ++ show col ++
+  show (StrState str (Pos ln col)) =
+    "StrState{line: "  ++ show ln ++ ", col: " ++ show col ++
     ", current: \"" ++ str ++ "\"}"
 
 --------------------
@@ -41,7 +40,7 @@ type Column = Int
 data Pos = Pos Line Column
 
 instance Show Pos where
-  show (Pos line col) = "Pos " ++ show line ++ " " ++ show col
+  show (Pos ln col) = "Pos " ++ show ln ++ " " ++ show col
 
 instance Eq Pos where
   Pos lx cx == Pos ly cy = lx == ly && cx == cy
@@ -53,13 +52,13 @@ beginPos :: Pos
 beginPos = Pos beginNum beginNum
 
 proceed :: Int -> Pos -> Pos
-proceed n (Pos line col) = Pos line (col+n)
+proceed n (Pos ln col) = Pos ln (col+n)
 
 proceed1 :: Pos -> Pos
 proceed1 = proceed 1
 
 newLine :: Pos -> Pos
-newLine (Pos line col) = Pos (line+1) beginNum
+newLine (Pos ln _) = Pos (ln+1) beginNum
 
 --------------------
 
@@ -68,7 +67,7 @@ isNewLine = flip elem "\n"
 
 char :: StrParser Char
 char = parser $ p
-  where p st@(StrState [] pos)  = (Fail "no more character", st)
+  where p st@(StrState [] _)  = (Fail "no more character", st)
         p (StrState (x:xs) pos) =
           let nextPos = (if isNewLine x then newLine else proceed1) pos
           in (OK x, StrState xs nextPos)
@@ -103,9 +102,9 @@ spaces :: StrParser ()
 spaces = many space >> return ()
 
 filterP :: (a -> Bool) -> String -> StrParser a -> StrParser a
-filterP pred msg p = parser $ \st ->
+filterP prd msg p = parser $ \st ->
   let (res, st') = runParser p st in
-    case (res, fmap pred res) of
+    case (res, fmap prd res) of
       (Fail _, _)   -> (res, st)
       (_, OK False) -> (Fail msg, st)
       _             -> (res, st')
@@ -115,7 +114,7 @@ consume p = parser $ \st ->
   let (res, st') = runParser p st in
     case res of
       Fail msg -> (Fail msg, st')
-      OK v     -> (OK $ collect st st', st')
+      OK _     -> (OK $ collect st st', st')
   where collect st@(StrState _ posX) dest@(StrState _ posY)
           | posX == posY = []
           | otherwise = let (OK c, st') = runParser char st

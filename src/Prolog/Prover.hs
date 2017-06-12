@@ -109,8 +109,6 @@ call node = do
   where
     exec args p = do
       (fParams, fBody) <- fresh p
-      -- defer $ mapM_ unbind args
-      -- defer $ mapM_ unbind fParams
       sequence_ $ zipWith unify args fParams
       call $ fBody
 
@@ -174,32 +172,33 @@ fresh (params, body) = do
   let renames = map (\(Var v, Var fv) -> (v, fv)) $ filter (isVar . fst) (zip params fParams)
   fBody <- evalStateT (go body) (Map.fromList renames)
   return (fParams, fBody)
-  where isVar (Var _) = True
-        isVar _       = False
+  where
+    isVar (Var _) = True
+    isVar _       = False
 
-        mkRenames = mapM $ \nd -> case nd of
-          Var _ -> Var <$> freshVar
-          _ -> return nd
+    mkRenames = mapM $ \nd -> case nd of
+      Var _ -> Var <$> freshVar
+      _ -> return nd
           
-        go bd = case bd of
-          Var v -> do
-            wMaybe <- gets $ Map.lookup v
-            case wMaybe of
-              Just w -> return $ Var w
-              Nothing -> do
-                newVar <- lift freshVar
-                modify $ Map.insert v newVar
-                return $ Var newVar
-          Func p args -> Func p <$> mapM go args
-          _ -> return body
+    go bd = case bd of
+      Var v -> do
+        wMaybe <- gets $ Map.lookup v
+        case wMaybe of
+          Just w -> return $ Var w
+          Nothing -> do
+            newVar <- lift freshVar
+            modify $ Map.insert v newVar
+            return $ Var newVar
+      Func p args -> Func p <$> sequence (map go args)
+      _ -> return bd
 
-        freshVar :: Monad m => ProverT r m String
-        freshVar = do
-          num <- lift (gets varNum)
-          let newVar = "_G" ++ show num
-          exists <- liftBindingsP $ gets (Map.member newVar)
-          lift . modify $ \env -> env { varNum = num + 1 }
-          if exists then freshVar else return newVar
+    freshVar :: Monad m => ProverT r m String
+    freshVar = do
+      num <- lift (gets varNum)
+      let newVar = "_G" ++ show num
+      exists <- liftBindingsP $ gets (Map.member newVar)
+      lift . modify $ \env -> env { varNum = num + 1 }
+      if exists then freshVar else return newVar
 
 ------------------------------------------------------------
 -- handy functions

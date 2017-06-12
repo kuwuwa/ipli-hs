@@ -59,8 +59,8 @@ instance Monad m => Alternative (ParserT s m) where
   many p = ParserT $ \st -> do
     (v, st') <- runParserT p st
     case v of
-      Fail msg -> return (OK [], st)
-      OK v -> runParserT ((v:) <$> many p) st'
+      Fail _ -> return (OK [], st)
+      OK w   -> runParserT ((w:) <$> many p) st'
   {-# INLINE many #-}
 
   some p = fmap (:) p <*> many p

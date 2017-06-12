@@ -2,18 +2,15 @@ module Prolog.Repl (
     repl
   ) where
 
-import           Lib.Parser       (Result(..), runParser, runParserT, failParse)
-import           Lib.Combinator   (except)
-import           Lib.StringParser (StrState(..), spaces, beginPos)
+import           Lib.Parser       (Result(..))
 import           Lib.Backtrack    (BacktrackT(..), failWith)
 import qualified Lib.Backtrack    as Backtrack
 
 import           Prolog.Loader    (loadFile)
 import           Prolog.Node      (Node(..))
-import qualified Prolog.Node      as Node
 import           Prolog.Token     (Token)
 import qualified Prolog.Token     as Token
-import           Prolog.Database  (Database, emptyDatabase, appendClause)
+import           Prolog.Database  (appendClause)
 import           Prolog.Operator  (OpData, initOpData)
 import           Prolog.Parser    (TokenStream(..), runPLParser, topLevel)
 import           Prolog.Prover    (Environment(..), liftDB, call)
@@ -21,13 +18,11 @@ import           Prolog.Tokenizer (tokenize)
 
 import           Prolog.Builtin.Predicate (builtinPredicates)
 
-import           Control.Applicative
 import           Control.Monad
 import           Control.Monad.Trans.Class
 import           Control.Monad.Trans.State
 
 import           Data.Char
-import           Data.Map (Map)
 import qualified Data.Map as Map
 
 import           System.Environment
@@ -65,7 +60,7 @@ repl = (fst <$>) $ flip runStateT initEnvironment $ do
         execute tokens = do
           (res, tokens') <- parse1 tokens <$> gets opData
           case res of
-            Fail msg -> do
+            Fail _ -> do
               let rest = dropWhile (/= Token.Period) tokens
               if rest == [] then return tokens
               else do

@@ -3,11 +3,11 @@ module Lib.Backtrack (
   , BacktrackT(..)
   , failWith
   , fatalWith
+  , cut
   , defer
   ) where
 
 import           Control.Applicative
-import           Control.Monad
 import           Control.Monad.Trans.Class
 
 type Msg = String
@@ -45,7 +45,7 @@ instance Monad m => Alternative (BacktrackT r m) where
   x <|> y = BacktrackT $ \k -> do
     v <- runBacktrackT x k
     case v of
-      OK r      -> return v
+      OK _      -> return v
       Fail _    -> runBacktrackT y k
       Fatal msg -> return $ Fatal msg
 

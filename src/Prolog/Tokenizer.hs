@@ -13,7 +13,6 @@ module Prolog.Tokenizer (
   , bar
   ) where
 
-import           Control.Monad
 import           Control.Applicative
 
 import           Lib.Parser
@@ -34,7 +33,7 @@ tokenize code = convert $ flip runParser (StrState code beginPos) $ do
   except (char >> return ()) (return ()) <|> (token >> return ())
   return tokens
     where convert (Fail msg, StrState rest pos) = (Fail (msg ++ show pos), rest)
-          convert (OK val, StrState rest pos) = (OK val, rest)
+          convert (OK val, StrState rest _) = (OK val, rest)
 
 token :: StrParser Token
 token = foldl1 (<|>) $ map (spaces >>) tokenRules
@@ -46,13 +45,13 @@ atom = atomNormal <|> atomSymbols <|> atomQuoted <|> atomOthers <|> failNotAtom
   where 
     atomNormal :: StrParser Token
     atomNormal = do
-      id <- consume $ lower >> many (lower <|> upper <|> digit <|> exact '_')
-      return $ Atom id False
+      name <- consume $ lower >> many (lower <|> upper <|> digit <|> exact '_')
+      return $ Atom name False
 
     atomSymbols :: StrParser Token
     atomSymbols = do
-      id <- some $ oneOfChars symbols
-      return $ Atom id False
+      name <- some $ oneOfChars symbols
+      return $ Atom name False
         where symbols = "~@#$^&*-+=\\/.:?<>"
 
     atomQuoted :: StrParser Token
@@ -62,8 +61,8 @@ atom = atomNormal <|> atomSymbols <|> atomQuoted <|> atomOthers <|> failNotAtom
 
     atomOthers :: StrParser Token
     atomOthers = do
-      id <- oneOfChars "!,.;"
-      return $ Atom [id] False
+      name <- oneOfChars "!,.;"
+      return $ Atom [name] False
 
     failNotAtom :: StrParser Token
     failNotAtom = failParse "not an atom"

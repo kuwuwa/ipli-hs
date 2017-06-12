@@ -3,11 +3,9 @@ module Prolog.Loader (
   ) where
 
 
-import           Prolog.Database    (Database, Entry, appendClause, parseClause)
-import           Prolog.Operator    (OpData(..))
+import           Prolog.Database    (appendClause)
 import           Prolog.Parser (
     TokenStream(..)
-  , PLParser
   , PLParserT
   , runPLParserT
   , liftPLParserT
@@ -15,30 +13,23 @@ import           Prolog.Parser (
   , anything
   )
 import           Prolog.Prover (
-    ProverT
-  , Environment(..)
+    Environment(..)
   , liftDB
-  , liftPredDB
   , liftOpData
   , call
   )
 import           Prolog.Node        (Node(..))
 import           Prolog.Token       (Token)
-import qualified Prolog.Token       as Tk
 import           Prolog.Tokenizer   (token)
 
 import           Control.Applicative
-import           Control.Monad
 import           Control.Monad.Trans.Class
 import           Control.Monad.Trans.State
 
-import           Data.Map (Map)
-import qualified Data.Map as Map
-
 import           Lib.Combinator   (except)
-import           Lib.Parser       (Result(..), runParser, runParserT, failParse)
+import           Lib.Parser       (Result(..), runParser, failParse)
 import           Lib.StringParser (StrState(..), beginPos)
-import           Lib.Backtrack    (runBacktrackT, failWith)
+import           Lib.Backtrack    (runBacktrackT)
 import qualified Lib.Backtrack    as B
 
 loadFile :: FilePath -> StateT (Environment () IO) IO ()
@@ -54,8 +45,9 @@ loadFile path = do
       case status of
         OK () -> lift $ putStrLn ("OK: " ++ path)
         Fail msg -> lift $ do
-          putStrLn $ "loading " ++ path ++ " failed at: "
+          putStr $ "loading " ++ path ++ " failed at: "
           putStrLn $ show restTokens
+          putStrLn msg
     
 loadAll :: Monad m => PLParserT (StateT (Environment () m) m) ()
 loadAll = do
@@ -76,7 +68,6 @@ beginTokenize code =
 loadClause :: Monad m => PLParserT (StateT (Environment () m) m) ()
 loadClause = do
   clause <- topLevel
-  -- TODO: execute static procedures (:-)
   case clause of
     Func ":-"  [node] -> do
       liftPLParserT $ runBacktrackT (call node) (return . B.OK)

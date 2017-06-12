@@ -65,7 +65,7 @@ mkOpData zfzMap' fzMap' zfMap' = OpData {
   } where prec (Operator _ p _) = p
 
 addOperator :: Operator -> OpData -> OpData
-addOperator op@(Operator opName prec opType) opData =
+addOperator op@(Operator opName _ opType) opData =
     mkOpData (updZfz $ zfzMap opData) (updFz $ fzMap opData) (updZf $ zfMap  opData)
   where insert = Map.insert opName op
         (updFz, updZf, updZfz)
@@ -77,6 +77,7 @@ addOperator op@(Operator opName prec opType) opData =
 
 type OpMap = Map String Operator
 
+initOpData :: OpData
 initOpData = mkOpData (Map.fromList binaryOperators)
                       (Map.fromList prefixOperators)
                       (Map.fromList suffixOperators)

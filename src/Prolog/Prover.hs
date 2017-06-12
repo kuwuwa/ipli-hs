@@ -24,25 +24,22 @@ module Prolog.Prover (
   , typeOf
   ) where
 
-import           Lib.Backtrack (BResult(..), BacktrackT(..), failWith, fatalWith, defer)
+import           Lib.Backtrack (BacktrackT(..), failWith, fatalWith, defer)
 
 import           Prolog.Database (Database)
 import           Prolog.Node     (Node(..))
-import           Prolog.Operator (Operator(..), OpData)
+import           Prolog.Operator (OpData)
 
-import           Control.Applicative ((<|>), empty)
+import           Control.Applicative ((<|>))
 
 import           Control.Monad
-import           Control.Monad.IO.Class    (MonadIO(..))
 import           Control.Monad.Trans.Class (lift)
-import           Control.Monad.Trans.State (State, StateT(..), evalStateT, gets, modify)
+import           Control.Monad.Trans.State (StateT(..), evalStateT, gets, modify)
 
 import           Data.Maybe (fromJust, isJust)
 
 import           Data.Map (Map)
 import qualified Data.Map as Map
-
-import           Debug.Trace
 
 ------------------------------------------------------------
 
@@ -100,7 +97,7 @@ call :: Monad m => Node -> ProverT r m ()
 call node = do
   assertCallable node
   let (name, args) = case node of
-        Atom name -> (name, [])
+        Atom n -> (n, [])
         Func p a  -> (p, a)
       arity = length args
   procMaybe <- lift $ gets (Map.lookup (name, arity) . predDatabase)
@@ -116,10 +113,6 @@ call node = do
       -- defer $ mapM_ unbind fParams
       sequence_ $ zipWith unify args fParams
       call $ fBody
-
-    unbind (Var p) = do
-      liftBindingsP $ modify (Map.delete p)
-    unbind _       = return ()
 
     failNoAnswer = failWith "no answer"
 
@@ -184,15 +177,11 @@ fresh (params, body) = do
   where isVar (Var _) = True
         isVar _       = False
 
-        assocToFreshVar (Var name) = do
-          newVar <- freshVar
-          return (name, newVar)
-
         mkRenames = mapM $ \nd -> case nd of
-          Var v -> Var <$> freshVar
+          Var _ -> Var <$> freshVar
           _ -> return nd
-
-        go body = case body of
+          
+        go bd = case bd of
           Var v -> do
             wMaybe <- gets $ Map.lookup v
             case wMaybe of

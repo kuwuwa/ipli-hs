@@ -52,7 +52,7 @@ test-suite ipli-hs-test
   main-is:             Spec.hs
   other-modules:       Prolog.ParserSpec
                      , Prolog.ProverSpec
-                       Prolog.TokenSpec
+                     , Prolog.TokenSpec
                      , Prolog.TokenizerSpec
   build-depends:       base
                      , ipli-hs

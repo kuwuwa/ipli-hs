@@ -45,7 +45,6 @@ repl = (fst <$>) $ flip runStateT initEnvironment $ do
     loadFile fileName
   lift (hSetBuffering stdin LineBuffering) >> loop []
   where loop restTokens = do
-          lift $ print restTokens
           lift $ putStr "IPLI > " >> hFlush stdout
           eof <- lift isEOF
           if eof then lift $ putStrLn "bye"

@@ -16,6 +16,7 @@ module Prolog.Prover (
   , resolve
   , unify
   , assertAtom
+  , assertNumber
   , assertPInt
   , assertPFloat
   , assertStr
@@ -103,7 +104,7 @@ call node = do
   procMaybe <- lift $ gets (Map.lookup (name, arity) . predDatabase)
   entriesMaybe <- lift $ gets (Map.lookup (name, arity) . database)
   case (procMaybe, entriesMaybe) of
-    (Just proc, _) -> proc args
+    (Just proc, _) -> mapM resolve args >>= proc
     (_, Just entries) -> foldr (<|>) failNoAnswer $ map (exec args) entries
     _ -> fatalWith $ "no such predicate: " ++ name
   where
@@ -144,11 +145,17 @@ bind x y = do
       | xv == "_" -> return () -- _ should not be bound to any value
       | otherwise -> do
         defer (liftBindingsP $ modify (Map.delete xv))
+        case y' of
+          Var yv -> defer (liftBindingsP $ modify (Map.delete yv))
+          _      -> return ()
         liftBindingsP . modify $ Map.insert xv y'
     (_, Var yv)
       | yv == "_" -> return () -- _ should not be bound to any value
       | otherwise -> do
         defer (liftBindingsP $ modify (Map.delete yv))
+        case x' of
+          Var xv -> defer (liftBindingsP $ modify (Map.delete xv))
+          _      -> return ()
         liftBindingsP . modify $ Map.insert yv x'
     _ -> failWith "can't bind two nonvars"
 
@@ -208,6 +215,12 @@ assertAtom :: Monad m => Node -> ProverT r m ()
 assertAtom node = case node of
   Atom _ -> return ()
   _      -> fatalWith $ "atom expected, but got " ++ typeOf node
+
+assertNumber :: Monad m => Node -> ProverT r m ()
+assertNumber node = case node of
+  PInt _   -> return ()
+  PFloat _ -> return ()
+  _        -> fatalWith $ "number expected, but got " ++ typeOf node
 
 assertPInt :: Monad m => Node -> ProverT r m ()
 assertPInt node = case node of

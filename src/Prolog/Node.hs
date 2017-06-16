@@ -30,11 +30,11 @@ instance Show Node where
   show func@(Func proc args)
     | isPList func = "[" ++ show (head args) ++ showCdr (head $ tail args)
     | otherwise = join " " ("(Func" : proc : map show args) ++ ")"
-    where isPList (Func proc args) = proc == "[|]" && length args == 2
+    where isPList (Func n a) = n == "[|]" && length a == 2
           isPList _ = False
 
           showCdr Nil = "]"
-          showCdr v@(Func proc [h, l])
+          showCdr v@(Func _ [h, l])
             | isPList v = ", " ++ show h ++ showCdr l
           showCdr v = " | " ++ show v ++ "]"
 

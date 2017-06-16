@@ -13,7 +13,6 @@ module Prolog.Parser (
   ) where
 
 import           Control.Applicative
-import           Control.Monad
 import           Control.Monad.Trans.Class
 import           Control.Monad.Trans.State
 
@@ -21,7 +20,6 @@ import           Data.Functor.Identity
 
 import           Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
-import           Data.Set        (Set)
 import qualified Data.Set        as Set
 
 import           Lib.Parser (ParserT(..), runParserT, Result(..), failParse)
@@ -29,9 +27,7 @@ import           Lib.Parser (ParserT(..), runParserT, Result(..), failParse)
 import           Prolog.Token    (Token)
 import qualified Prolog.Token    as Tk
 import           Prolog.Node  (Node(..))
-import           Prolog.Operator (Operator(..), OpState, OpType(..), OpData(..))
-
-import           Debug.Trace
+import           Prolog.Operator (Operator(..), OpType(..), OpData(..))
 
 ------------------------------------------------------------
 -- token stream
@@ -74,8 +70,6 @@ type Prec = Int
 
 type ParseMemo = Map (Index, Prec) (Result Node, TokenStream)
 
-type ParseState = State ParseMemo
-
 setMemo :: Monad m => (Index, Prec) -> PLParserT m Node -> PLParserT m Node
 setMemo key parser = ParserT $ \st -> do
   result <- runParserT parser st
@@ -94,7 +88,10 @@ withMemo key parser = do
 -- syntactic parsers for Prolog
 ----------------------------------------------------------
 
+upperPrecLimit :: Int
 upperPrecLimit = 1200
+
+lowerPrecLimit :: Int
 lowerPrecLimit = 0
 
 topLevel :: Monad m => PLParserT m Node
@@ -114,21 +111,21 @@ expr prec = do
   where lookahead = ParserT $ \st -> do
           (result, _) <- runParserT anything st
           return $ case result of
-                     Fail msg           -> (Fail $ "no more token", st)
-                     OK Tk.RParen       -> (Fail $ "unexpected `)'", st)
-                     OK Tk.RBracket     -> (Fail $ "unexpected `]'", st)
-                     OK Tk.Bar          -> (Fail $ "unexpected bar", st)
-                     v                  -> (v, st)
+                     Fail _         -> (Fail $ "no more token", st)
+                     OK Tk.RParen   -> (Fail $ "unexpected `)'", st)
+                     OK Tk.RBracket -> (Fail $ "unexpected `]'", st)
+                     OK Tk.Bar      -> (Fail $ "unexpected bar", st)
+                     v              -> (v, st)
 
         term = fx <|> fy <|> xfx <|> suffix (lowerExpr prec)
           where fx = do
                   (Operator name _ _) <- oper Fx prec
-                  term <- suffix $ lowerExpr prec
-                  return $ Func name [term]
+                  ter <- suffix $ lowerExpr prec
+                  return $ Func name [ter]
                 fy = do
                   (Operator name _ _) <- oper Fy prec
-                  term <- term
-                  return $ Func name [term]
+                  ter <- term
+                  return $ Func name [ter]
 
         xfx = do
           lhs <- lowerExpr prec
@@ -137,16 +134,16 @@ expr prec = do
           return $ Func name [lhs, rhs]
 
         suffix parser = parser >>= loop
-          where loop term = xf term <|> yf term <|> return term
+          where loop ter = xf ter <|> yf ter <|> return ter
 
-        xf term = do
+        xf ter = do
           (Operator name _ _) <- oper Xf prec
-          return $ Func name [term]
+          return $ Func name [ter]
 
-        yf term = do
+        yf ter = do
           (Operator name _ _) <- oper Yf prec
-          let term' = Func name [term]
-          yf term' <|> return term'
+          let ter' = Func name [ter]
+          yf ter' <|> return ter'
 
         rassoc = loop <|> term
           where loop = do
@@ -174,8 +171,8 @@ expr0 = do
 
 func :: Monad m => PLParserT m Node
 func = do
-  pred <- prim
-  case pred of
+  p <- prim
+  case p of
     Atom a -> do
       xs <- do
         lparen
@@ -206,7 +203,7 @@ prim :: Monad m => PLParserT m Node
 prim = do
   token <- anything
   case token of
-    Tk.Atom a b -> return $ Atom a
+    Tk.Atom a _ -> return $ Atom a
     Tk.Var    v -> return $ Var v
     Tk.PInt   i -> return $ PInt i
     Tk.PFloat f -> return $ PFloat f
@@ -219,13 +216,13 @@ prim = do
 
 lowerExpr :: Monad m => Int -> PLParserT m Node
 lowerExpr prec = do
-  prec' <- lift . gets $ Set.lookupLT prec . precs
-  case prec' of
+  precMaybe' <- lift . gets $ Set.lookupLT prec . precs
+  case precMaybe' of
     Nothing -> expr0
     Just prec' -> expr prec'
 
 index :: Monad m => PLParserT m Index
-index = ParserT $ \st@(TokenStream ind xs) -> return (OK ind, st)
+index = ParserT $ \st@(TokenStream ind _) -> return (OK ind, st)
  
 commaSep :: Monad m => PLParserT m ()
 commaSep = do
@@ -242,7 +239,7 @@ oper opType prec = do
       op <- getOp name
       case op of
         Nothing -> failParse "not an operator"
-        Just (Operator name prec' opType')
+        Just (Operator _ prec' opType')
           | opType == opType' && prec == prec' -> return $ Operator name prec opType
           | otherwise         -> failParse $ "not " ++ show opType ++ " operator"
     _ -> failParse "not an operator"

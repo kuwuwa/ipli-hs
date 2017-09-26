@@ -4,7 +4,7 @@ module Prolog.Operator (
   , OpState
   , OpMap
   , OpData(zfzMap, fzMap, zfMap, precs) -- except the constructor
-  , addOperator
+  , addOp
   , mkOpData
   , initOpData
   ) where
@@ -64,8 +64,8 @@ mkOpData zfzMap' fzMap' zfMap' = OpData {
   , precs = Set.fromList . concat $ map (map prec . Map.elems) [zfzMap', fzMap', zfMap']
   } where prec (Operator _ p _) = p
 
-addOperator :: Operator -> OpData -> OpData
-addOperator op@(Operator opName _ opType) opData =
+addOp :: Operator -> OpData -> OpData
+addOp op@(Operator opName _ opType) opData =
     mkOpData (updZfz $ zfzMap opData) (updFz $ fzMap opData) (updZf $ zfMap  opData)
   where insert = Map.insert opName op
         (updFz, updZf, updZfz)

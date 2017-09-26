@@ -119,17 +119,17 @@ expr prec = do
 
         term = fx <|> fy <|> xfx <|> suffix (lowerExpr prec)
           where fx = do
-                  (Operator name _ _) <- oper Fx prec
+                  Operator name _ _ <- oper Fx prec
                   ter <- suffix $ lowerExpr prec
                   return $ Func name [ter]
                 fy = do
-                  (Operator name _ _) <- oper Fy prec
+                  Operator name _ _ <- oper Fy prec
                   ter <- term
                   return $ Func name [ter]
 
         xfx = do
           lhs <- lowerExpr prec
-          (Operator name _ _) <- oper Xfx prec
+          Operator name _ _ <- oper Xfx prec
           rhs <- lowerExpr prec
           return $ Func name [lhs, rhs]
 
@@ -137,18 +137,18 @@ expr prec = do
           where loop ter = xf ter <|> yf ter <|> return ter
 
         xf ter = do
-          (Operator name _ _) <- oper Xf prec
+          Operator name _ _ <- oper Xf prec
           return $ Func name [ter]
 
         yf ter = do
-          (Operator name _ _) <- oper Yf prec
+          Operator name _ _ <- oper Yf prec
           let ter' = Func name [ter]
           yf ter' <|> return ter'
 
         rassoc = loop <|> term
           where loop = do
                   lhs <- lowerExpr prec
-                  (Operator name _ _) <- oper Xfy prec
+                  Operator name _ _ <- oper Xfy prec
                   rhs <- rassoc
                   return $ Func name [lhs, rhs]
 
@@ -156,7 +156,7 @@ expr prec = do
           lhs <- rassoc
           loop lhs
           where loop ter = (do
-                  (Operator name _ _) <- oper Yfx prec
+                  Operator name _ _ <- oper Yfx prec
                   rhs <- lowerExpr prec
                   loop $ Func name [ter, rhs]) <|> return ter
 

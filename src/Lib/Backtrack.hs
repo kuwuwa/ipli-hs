@@ -3,6 +3,7 @@ module Lib.Backtrack (
   , BacktrackT(..)
   , failWith
   , fatalWith
+  , ok
   , cut
   , defer
   ) where
@@ -35,13 +36,17 @@ instance Functor (BacktrackT r m) where
   fmap f m = BacktrackT $ \k -> runBacktrackT m (k . f)
 
 instance Applicative (BacktrackT r m) where
+  {-# INLINE pure #-}
   pure x = BacktrackT ($ x)
 
+  {-# INLINE (<*>) #-}
   x <*> y = BacktrackT $ \k -> runBacktrackT x $ \f -> runBacktrackT y (k . f)
 
 instance Monad m => Alternative (BacktrackT r m) where
+  {-# INLINE empty #-}
   empty = BacktrackT $ \_ -> return (Fail "empty")
 
+  {-# INLINE (<|>) #-}
   x <|> y = BacktrackT $ \k -> do
     v <- runBacktrackT x k
     case v of
@@ -50,22 +55,33 @@ instance Monad m => Alternative (BacktrackT r m) where
       Fatal msg -> return $ Fatal msg
 
 instance Monad (BacktrackT r m) where
+  {-# INLINE return #-}
   return x = BacktrackT ($ x)
 
+  {-# INLINE (>>) #-}
   x >> y = BacktrackT $ \k -> runBacktrackT x $ \_ -> runBacktrackT y k
+  {-# INLINE (>>=) #-}
   x >>= f = BacktrackT $ \k -> runBacktrackT x $ \v -> runBacktrackT (f v) k
 
 instance MonadTrans (BacktrackT r) where
+  {-# INLINE lift #-}
   lift m = BacktrackT (m >>=)
 
 ------------------------------------------------------------
 
+{-# INLINE ok #-}
+ok :: Monad m => BacktrackT r m ()
+ok = return ()
+
+{-# INLINE failWith #-}
 failWith :: Monad m => String -> BacktrackT r m a
 failWith msg = BacktrackT $ \_ -> return (Fail msg)
 
+{-# INLINE fatalWith #-}
 fatalWith :: Monad m => String -> BacktrackT r m a
 fatalWith msg = BacktrackT $ \_ -> return (Fatal msg)
 
+{-# INLINE cut #-}
 cut :: Monad m => BacktrackT r m ()
 cut = BacktrackT $ \k -> do
   res <- k ()
@@ -74,6 +90,7 @@ cut = BacktrackT $ \k -> do
     Fail msg  -> Fatal $ "[cut]" ++ msg
     _         -> res
 
+{-# INLINE defer #-}
 defer :: Monad m => BacktrackT r m b -> BacktrackT r m ()
 defer p = BacktrackT $ \k -> do
   res <- k ()

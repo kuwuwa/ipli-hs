@@ -25,7 +25,7 @@ module Prolog.Prover (
   , typeOf
   ) where
 
-import           Lib.Backtrack (BacktrackT(..), failWith, fatalWith, defer)
+import           Lib.Backtrack (BacktrackT(..), ok, failWith, fatalWith, defer)
 
 import           Prolog.Database (Database)
 import           Prolog.Node     (Node(..))
@@ -142,20 +142,20 @@ bind x y = do
   y' <- resolve y
   case (x', y') of
     (Var xv, _)
-      | xv == "_" -> return () -- _ should not be bound to any value
+      | xv == "_" -> ok -- _ should not be bound to any value
       | otherwise -> do
         defer (liftBindingsP $ modify (Map.delete xv))
         case y' of
           Var yv -> defer (liftBindingsP $ modify (Map.delete yv))
-          _      -> return ()
+          _      -> ok
         liftBindingsP . modify $ Map.insert xv y'
     (_, Var yv)
-      | yv == "_" -> return () -- _ should not be bound to any value
+      | yv == "_" -> ok -- _ should not be bound to any value
       | otherwise -> do
         defer (liftBindingsP $ modify (Map.delete yv))
         case x' of
           Var xv -> defer (liftBindingsP $ modify (Map.delete xv))
-          _      -> return ()
+          _      -> ok
         liftBindingsP . modify $ Map.insert yv x'
     _ -> failWith "can't bind two nonvars"
 
@@ -170,7 +170,7 @@ unify x y = do
     (Var _, _) -> bind x' y'
     (_, Var _) -> bind x' y'
     _
-      | x' == y'  -> return ()
+      | x' == y'  -> ok
       | otherwise -> failWith $ "can't unify " ++ show x' ++ " and " ++ show y'
 
 fresh :: Monad m => ([Node], Node) -> ProverT r m ([Node], Node)
@@ -213,44 +213,44 @@ fresh (params, body) = do
 
 assertAtom :: Monad m => Node -> ProverT r m ()
 assertAtom node = case node of
-  Atom _ -> return ()
+  Atom _ -> ok
   _      -> fatalWith $ "atom expected, but got " ++ typeOf node
 
 assertNumber :: Monad m => Node -> ProverT r m ()
 assertNumber node = case node of
-  PInt _   -> return ()
-  PFloat _ -> return ()
+  PInt _   -> ok
+  PFloat _ -> ok
   _        -> fatalWith $ "number expected, but got " ++ typeOf node
 
 assertPInt :: Monad m => Node -> ProverT r m ()
 assertPInt node = case node of
-  PInt _ -> return ()
+  PInt _ -> ok
   _      -> fatalWith $ "integer expected, but got " ++ typeOf node
 
 assertPFloat :: Monad m => Node -> ProverT r m ()
 assertPFloat node = case node of
-  PFloat _ -> return ()
+  PFloat _ -> ok
   _        -> fatalWith $ "float expected, but got " ++ typeOf node
 
 assertStr :: Monad m => Node -> ProverT r m ()
 assertStr node = case node of
-  Str _ -> return ()
+  Str _ -> ok
   _     -> fatalWith $ "string expected, but got " ++ typeOf node
 
 assertNil :: Monad m => Node -> ProverT r m ()
 assertNil node = case node of
-  Nil -> return ()
+  Nil -> ok
   _   -> fatalWith $ "nil expected, but got " ++ typeOf node
 
 assertFunc :: Monad m => Node -> ProverT r m ()
 assertFunc node = case node of
-  Func _ _ -> return ()
+  Func _ _ -> ok
   _        -> fatalWith $ "functor expected, but got " ++ typeOf node
 
 assertCallable :: Monad m => Node -> ProverT r m ()
 assertCallable node = case node of
-  Atom _   -> return ()
-  Func _ _ -> return ()
+  Atom _   -> ok
+  Func _ _ -> ok
   _        -> fatalWith $ "callable expected, but got " ++ typeOf node
 
 typeOf :: Node -> String

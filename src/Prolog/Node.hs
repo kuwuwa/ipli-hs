@@ -21,22 +21,16 @@ instance Eq Node where
   _             == _             = False
 
 instance Show Node where
-  show (Atom a)            = "(Atom " ++ show a ++ ")"
-  show (Var v)             = "(Var " ++ show v ++ ")"
-  show (PInt i)            = "(PInt " ++ show i ++ ")"
-  show (PFloat f)          = "(PFloat " ++ show f ++ ")"
-  show (Str s)             = "(Str " ++ s ++ ")"
-  show Nil                 = "[]"
-  show func@(Func proc args)
-    | isPList func = "[" ++ show (head args) ++ showCdr (head $ tail args)
-    | otherwise = join " " ("(Func" : proc : map show args) ++ ")"
-    where isPList (Func n a) = n == "[|]" && length a == 2
-          isPList _ = False
-
-          showCdr Nil = "]"
-          showCdr v@(Func _ [h, l])
-            | isPList v = ", " ++ show h ++ showCdr l
+  show (Atom a)             = "(Atom " ++ show a ++ ")"
+  show (Var v)              = "(Var " ++ show v ++ ")"
+  show (PInt i)             = "(PInt " ++ show i ++ ")"
+  show (PFloat f)           = "(PFloat " ++ show f ++ ")"
+  show (Str s)              = "(Str " ++ s ++ ")"
+  show Nil                  = "[]"
+  show (Func "[|]" [hd, tl]) = "[" ++ show hd ++ showCdr tl
+    where showCdr Nil = "]"
+          showCdr (Func "[|]" [h, l]) = ", " ++ show h ++ showCdr l
           showCdr v = " | " ++ show v ++ "]"
-
-          join _ [] = ""
+  show (Func proc args)     = join " " ("(Func" : proc : map show args) ++ ")"
+    where join _ [] = ""
           join delim (x:xs) = concat  $ x : zipWith (++) (repeat delim) xs

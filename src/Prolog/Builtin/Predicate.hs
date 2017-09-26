@@ -72,7 +72,7 @@ builtinPredicates = Map.fromList [
 
 -- ("true", 0)
 true :: Monad m => Predicate r m
-true _ = return ()
+true _ = ok
 
 -- ("fail", 0)
 fail' :: Monad m => Predicate r m
@@ -93,7 +93,7 @@ unify' [lhs, rhs] = unify lhs rhs
 -- ("\=", 2)
 failIfUnified :: Monad m => Predicate r m
 failIfUnified [lhs, rhs] = BacktrackT $ \k -> do
-  let p = (unify lhs rhs >> fatalWith "neq") <|> return ()
+  let p = (unify lhs rhs >> fatalWith "neq") <|> ok
   res <- runBacktrackT p k
   return $ case res of
     Fatal "neq" -> Fail $ show lhs ++ " and " ++ show rhs ++ " can be unified"
@@ -103,13 +103,13 @@ failIfUnified [lhs, rhs] = BacktrackT $ \k -> do
 var :: Monad m => Predicate r m
 var [term] = do
   case term of
-    Var _ -> return ()
+    Var _ -> ok
     _     -> failWith $ "variable expected, but got " ++ typeOf term
 
 -- ("nonvar", 1)
 nonvar :: Monad m => Predicate r m
 nonvar args = BacktrackT $ \k -> do
-  let p = (var args >> fatalWith "unexpected var") <|> return ()
+  let p = (var args >> fatalWith "unexpected var") <|> ok
   res <- runBacktrackT p k
   return $ case res of
     Fatal msg -> Fail msg
@@ -119,36 +119,36 @@ nonvar args = BacktrackT $ \k -> do
 atom :: Monad m => Predicate r m
 atom [term] = do
   case term of
-    Atom _ -> return ()
+    Atom _ -> ok
     _      -> failWith $ "atom expected, but got " ++ typeOf term
 
 -- ("number", 1)
 number :: Monad m => Predicate r m
 number [term] = do
   case term of
-    PInt _   -> return ()
-    PFloat _ -> return ()
+    PInt _   -> ok
+    PFloat _ -> ok
     _        -> failWith $ "number expected, but got " ++ typeOf term
 
 -- ("integer", 1)
 integer :: Monad m => Predicate r m
 integer [term] = do
   case term of
-    PInt _ -> return ()
+    PInt _ -> ok
     _      -> failWith $ "integer expected, but got " ++ typeOf term
 
 -- ("float", 1)
 float :: Monad m => Predicate r m
 float [term] = do
   case term of
-    PFloat _ -> return ()
+    PFloat _ -> ok
     _        -> failWith $ "float expected, but got" ++ typeOf term
 
 -- ("compound", 1)
 compound :: Monad m => Predicate r m
 compound [term] = do
   case term of
-    Func _ _ -> return ()
+    Func _ _ -> ok
     _      -> failWith $ "compound expected, but got " ++ typeOf term
 
 ------------------------------
@@ -156,12 +156,12 @@ compound [term] = do
 -- ("eq", 2)
 eq :: Monad m => Predicate r m
 eq [lhs, rhs] = do
-  if lhs == rhs then return () else failWith "eq"
+  if lhs == rhs then ok else failWith "eq"
 
 -- ("neq", 2)
 neq :: Monad m => Predicate r m
 neq [lhs, rhs] = do
-  if lhs /= rhs then return () else failWith "neq"
+  if lhs /= rhs then ok else failWith "neq"
 
 ------------------------------
 

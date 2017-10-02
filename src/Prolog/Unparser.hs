@@ -28,31 +28,40 @@ unparse (Func "[|]" [hd, tl]) = do
       unparseTail term = do
           termStr <- unparse term
           return $ " | " ++ termStr ++ "]"
-unparse func@(Func _ _) = unparseFunc 700 func
+unparse _func@(Func _ _) = unparseFunc 1201 _func
   where
-    unparseFunc prec fc@(Func name [term]) = do
+    unparseFunc prec func@(Func name [term]) = do
       fzOpMaybe <- liftOpData $ gets (Map.lookup name . fzMap)
       zfOpMaybe <- liftOpData $ gets (Map.lookup name . zfMap)
       case (fzOpMaybe, zfOpMaybe) of
-        (Just (Operator _ prec' opType), _)
-          | opType == Fx -> error "TODO"
-          | opType == Fy -> error "TODO"
-        (_, Just (Operator _ prec' opType))
-          | opType == Xf -> error "TODO"
-          | opType == Yf -> error "TODO"
-        _ -> unparseFuncDefault fc
-    unparseFunc prec fc@(Func name [lhs, rhs]) = do
+        (Just (Operator _ prec' opType), _) -> do
+          let needParen = prec' <= prec
+              precNext = if opType == Fy then prec' else prec' - 1
+          content <- ((name ++ " ") ++) <$> unparseFunc precNext term
+          return $ if needParen then "(" ++ content ++ ")" else content
+        (_, Just (Operator _ prec' opType)) -> do
+          let needParen = prec' <= prec
+              precNext = if opType == Yf then prec' else prec' - 1
+          content <- (++ " " ++ name) <$> unparseFunc precNext term 
+          return $ if needParen then "(" ++ content ++ ")" else content
+        _ -> unparseFuncDefault func
+    unparseFunc prec func@(Func name [lhs, rhs]) = do
       zfzOpMaybe <- liftOpData $ gets (Map.lookup name . zfzMap)
       case zfzOpMaybe of
-        Just (Operator _ prec' opType)
-          | opType == Xfx -> error "TODO"
-          | opType == Xfy -> error "TODO"
-          | opType == Yfx -> error "TODO"
-        _ -> unparseFuncDefault fc
-    unparseFunc _ fc = unparseFuncDefault fc
+        Just (Operator _ prec' opType) -> do
+          let needParen = prec' <= prec
+              precLhs = if opType == Yfx then prec' else prec' - 1
+              precRhs = if opType == Xfy then prec' else prec' - 1
+          lhsStr <- unparseFunc precLhs lhs
+          rhsStr <- unparseFunc precRhs rhs
+          let content = lhsStr ++ " " ++ name ++ " " ++ rhsStr
+          return $ if needParen then "(" ++ content ++ ")" else content
+        _ -> unparseFuncDefault func
+    unparseFunc prec func@(Func _ _) = unparseFuncDefault func
+    unparseFunc _ term = unparse term
 
     unparseFuncDefault (Func name args) = do
-      argsStr <- mapM unparse args
+      argsStr <- mapM (unparseFunc 699) args
       return $ name ++ "(" ++ join ", " argsStr ++ ")"
 
     join _ [] = ""

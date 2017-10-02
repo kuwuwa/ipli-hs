@@ -15,6 +15,7 @@ import           Prolog.Operator  (OpData, initOpData)
 import           Prolog.Parser    (TokenStream(..), runPLParser, topLevel)
 import           Prolog.Prover    (Environment(..), ProverT, liftDB, call)
 import           Prolog.Tokenizer (tokenize)
+import           Prolog.Unparser  (unparse)
 
 import           Prolog.Builtin.Predicate (builtinPredicates)
 
@@ -107,7 +108,10 @@ repl = (fst <$>) $ flip runStateT initEnvironment $ do
       if ok
       then return ()
       else failWith "there is not what you want"
-        where printBinding (key, val) = lift . lift . putStrLn $ key ++ " = " ++ show val
+        where
+          printBinding (key, val) = do
+            valStr <- lift $ unparse val
+            lift . lift . putStrLn $ key ++ " = " ++ valStr
 
     findVars (Var v)       = Set.singleton v
     findVars (Func _ args) = foldr Set.union Set.empty $ map findVars args

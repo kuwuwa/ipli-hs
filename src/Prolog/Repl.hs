@@ -24,7 +24,9 @@ import           Control.Monad.Trans.Class
 import           Control.Monad.Trans.State
 
 import           Data.Char
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as Map
+import           Data.Set        (Set)
+import qualified Data.Set        as Set
 
 import           System.Environment
 import           System.IO
@@ -84,25 +86,29 @@ repl = (fst <$>) $ flip runStateT initEnvironment $ do
     execClause clause = lift $ do
       case clause of
         Func ":-" [node] -> do
-          status <- runBacktrackT ((call node >> ask) <|> failNotFound) (return . Backtrack.OK)
+          let shownVars = findVars node
+          status <- runBacktrackT (call node >> ask shownVars) (return . Backtrack.OK)
           lift . putStrLn $ case status of
-            Backtrack.OK ()     -> "" -- nope
-            Backtrack.Fail msg  -> "[IPLI] failed: " ++ msg
+            Backtrack.OK () -> "" -- nope
+            Backtrack.Fail msg -> "[IPLI] failed: " ++ msg
             Backtrack.Fatal msg -> "[IPLI] error: " ++ msg
         _ -> do
           liftDB $ appendClause clause
           lift $ putStrLn "[IPLI] registered"
-        where failNotFound = failWith "there is not an answer you want"
 
-    ask :: ProverT () IO ()
-    ask = do
-      bs <- lift $ Map.assocs <$> gets bindings
+    ask :: Set String -> ProverT () IO ()
+    ask shown = do
+      bs <- lift $ filter (flip Set.member shown . fst) <$> Map.assocs <$> gets bindings
       mapM_ printBinding bs
       ok <- lift . lift $ do
         putStr "[y/N]: " >> hFlush stdout
         yn <- getLine
         return $ map toLower yn `elem` ["y", "yes"]
       if ok
-      then lift . lift $ putStrLn "ok"
-      else failWith "this is not what you want"
+      then return ()
+      else failWith "there is not what you want"
         where printBinding (key, val) = lift . lift . putStrLn $ key ++ " = " ++ show val
+
+    findVars (Var v)       = Set.singleton v
+    findVars (Func _ args) = foldr Set.union Set.empty $ map findVars args
+    findVars _             = Set.empty

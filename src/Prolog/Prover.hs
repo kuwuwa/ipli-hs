@@ -113,7 +113,7 @@ call node = do
       sequence_ $ zipWith unify args fParams
       call $ fBody
 
-    failNoAnswer = failWith "no answer"
+    failNoAnswer = failWith "no more answer"
 
 resolve :: Monad m => Node -> ProverT r m Node
 resolve node = do

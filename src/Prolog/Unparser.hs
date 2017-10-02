@@ -3,6 +3,7 @@ module Prolog.Unparser (
 ) where
 
 import           Prolog.Node   (Node(..))
+import           Prolog.Parser (upperPrecLimit)
 import           Prolog.Prover  
 import           Prolog.Operator
 
@@ -28,7 +29,7 @@ unparse (Func "[|]" [hd, tl]) = do
       unparseTail term = do
           termStr <- unparse term
           return $ " | " ++ termStr ++ "]"
-unparse _func@(Func _ _) = unparseFunc 1201 _func
+unparse _func@(Func _ _) = unparseFunc upperPrecLimit _func
   where
     unparseFunc prec func@(Func name [term]) = do
       fzOpMaybe <- liftOpData $ gets (Map.lookup name . fzMap)
@@ -45,6 +46,7 @@ unparse _func@(Func _ _) = unparseFunc 1201 _func
           content <- (++ " " ++ name) <$> unparseFunc precNext term 
           return $ if needParen then "(" ++ content ++ ")" else content
         _ -> unparseFuncDefault func
+
     unparseFunc prec func@(Func name [lhs, rhs]) = do
       zfzOpMaybe <- liftOpData $ gets (Map.lookup name . zfzMap)
       case zfzOpMaybe of
@@ -57,12 +59,15 @@ unparse _func@(Func _ _) = unparseFunc 1201 _func
           let content = lhsStr ++ " " ++ name ++ " " ++ rhsStr
           return $ if needParen then "(" ++ content ++ ")" else content
         _ -> unparseFuncDefault func
+
     unparseFunc prec func@(Func _ _) = unparseFuncDefault func
+
     unparseFunc _ term = unparse term
 
     unparseFuncDefault (Func name args) = do
-      argsStr <- mapM (unparseFunc 699) args
+      -- 1000 is the precedence of comma
+      argsStr <- mapM (unparseFunc $ pred 1000) args
       return $ name ++ "(" ++ join ", " argsStr ++ ")"
 
     join _ [] = ""
-    join delim (x:xs) = concat  $ x : zipWith (++) (repeat delim) xs
+    join delim (x:xs) = concat $ x : zipWith (++) (repeat delim) xs

@@ -23,7 +23,8 @@ import           Control.Monad.Trans.Class
 import           Control.Monad.Trans.State
 
 import           Data.Char
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as Map
+import qualified Data.Set        as Set
 
 import           System.Environment
 import           System.IO
@@ -79,7 +80,10 @@ repl = (fst <$>) $ flip runStateT initEnvironment $ do
         execClause clause = lift $ do
           case clause of
             Func ":-" [node] -> do
-              status <- runBacktrackT (call node >> ask) (return . Backtrack.OK)
+              let shownVars = findVars node
+              status <- flip runBacktrackT (return . Backtrack.OK) $ do 
+                call node
+                ask shownVars
               lift . putStrLn $ case status of
                 Backtrack.OK () -> "" -- nope
                 Backtrack.Fail msg -> "[IPLI] failed: " ++ msg
@@ -88,8 +92,8 @@ repl = (fst <$>) $ flip runStateT initEnvironment $ do
               liftDB $ appendClause clause
               lift $ putStrLn "[IPLI] registered"
 
-        ask = do
-          bs <- lift $ Map.assocs <$> gets bindings
+        ask shown = do
+          bs <- lift $ filter (flip Set.member shown . fst) <$> Map.assocs <$> gets bindings
           mapM_ printBinding bs
           ok <- lift . lift $ do
             putStr "[y/N]: " >> hFlush stdout
@@ -100,4 +104,7 @@ repl = (fst <$>) $ flip runStateT initEnvironment $ do
           else failWith "there is not what you want"
             where printBinding (key, val) = lift . lift . putStrLn $ key ++ " = " ++ show val
 
+        findVars (Var v)       = Set.singleton v
+        findVars (Func _ args) = foldr Set.union Set.empty $ map findVars args
+        findVars _             = Set.empty
 

@@ -35,12 +35,12 @@ unparse _func@(Func _ _) = unparseFunc 1201 _func
       zfOpMaybe <- liftOpData $ gets (Map.lookup name . zfMap)
       case (fzOpMaybe, zfOpMaybe) of
         (Just (Operator _ prec' opType), _) -> do
-          let needParen = prec' <= prec
+          let needParen = prec' > prec
               precNext = if opType == Fy then prec' else prec' - 1
           content <- ((name ++ " ") ++) <$> unparseFunc precNext term
           return $ if needParen then "(" ++ content ++ ")" else content
         (_, Just (Operator _ prec' opType)) -> do
-          let needParen = prec' <= prec
+          let needParen = prec' > prec
               precNext = if opType == Yf then prec' else prec' - 1
           content <- (++ " " ++ name) <$> unparseFunc precNext term 
           return $ if needParen then "(" ++ content ++ ")" else content
@@ -49,7 +49,7 @@ unparse _func@(Func _ _) = unparseFunc 1201 _func
       zfzOpMaybe <- liftOpData $ gets (Map.lookup name . zfzMap)
       case zfzOpMaybe of
         Just (Operator _ prec' opType) -> do
-          let needParen = prec' <= prec
+          let needParen = prec' > prec
               precLhs = if opType == Yfx then prec' else prec' - 1
               precRhs = if opType == Xfy then prec' else prec' - 1
           lhsStr <- unparseFunc precLhs lhs

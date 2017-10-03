@@ -70,9 +70,9 @@ spec = do
           (Fail "parse failed", TokenStream 0 [Tk.PInt 7, Tk.Atom "mod" True, Tk.PInt 2, Tk.Period])
 
     it "meow(X) :- cat(X), alive(X)." $ do
-      let tokens = [Tk.Atom "meow" False, Tk.LParen, Tk.Var "X", Tk.RParen,
-                    Tk.Atom ":-" False, Tk.Atom "cat" False, Tk.LParen, Tk.Var "X", Tk.RParen,
-                    Tk.Atom "," False, Tk.Atom "alive" False, Tk.LParen, Tk.Var "X", Tk.RParen, Tk.Period]
+      let tokens = [Tk.Func "meow" , Tk.Var "X", Tk.RParen,
+                    Tk.Atom ":-" False, Tk.Func "cat" , Tk.Var "X", Tk.RParen,
+                    Tk.Atom "," False, Tk.Func "alive", Tk.Var "X", Tk.RParen, Tk.Period]
       parseTopLevel tokens `shouldBe`
           (OK $ Func ":-" [ Func "meow" [Var "X"],
                             Func "," [ Func "cat" [Var "X"], Func "alive" [Var "X"] ] ],
@@ -98,8 +98,8 @@ spec = do
           (OK $ pair (Atom "car") (Atom "cdr"), TokenStream 6 [])
 
     it "foo(bar, baz(qux))." $ do
-      let tokens = [Tk.Atom "foo" False, Tk.LParen, Tk.Atom "bar" False, Tk.Atom "," False,
-                    Tk.Atom "baz" False, Tk.LParen, Tk.Atom "qux" False, Tk.RParen, Tk.RParen, Tk.Period]
+      let tokens = [Tk.Func "foo", Tk.Atom "bar" False, Tk.Atom "," False,
+                    Tk.Func "baz", Tk.Atom "qux" False, Tk.RParen, Tk.RParen, Tk.Period]
       parseTopLevel tokens `shouldBe`
           (OK $ Func "foo" [ Atom "bar", Func "baz" [ Atom "qux" ] ],
            TokenStream (length tokens) [])

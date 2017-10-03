@@ -5,6 +5,7 @@ data Token = Atom String Bool
            | PInt Integer
            | PFloat Double
            | Str String
+           | Func String
            | LParen
            | RParen
            | LBracket
@@ -18,6 +19,7 @@ instance Eq Token where
   PInt a   == PInt b   = a == b
   PFloat a == PFloat b = a == b
   Str a    == Str b    = a == b
+  Func a   == Func b   = a == b
   LParen   == LParen   = True
   RParen   == RParen   = True
   LBracket == LBracket = True
@@ -31,7 +33,8 @@ instance Show Token where
   show (Var a)    = "Var "  ++ show a
   show (PInt a)   = "PInt " ++ show a
   show (PFloat a) = "PFloat " ++ show a
-  show (Str a)    =  "Str "  ++ show a
+  show (Str a)    = "Str "  ++ show a
+  show (Func a)   = "Func " ++ show a
   show LParen     = "LParen"
   show RParen     = "RParen"
   show LBracket   = "LBracket"

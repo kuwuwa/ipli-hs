@@ -110,8 +110,7 @@ repl = (fst <$>) $ flip runStateT initEnvironment $ do
       else failWith "there is not what you want"
         where
           printBinding (key, val) = do
-            valStr <- lift $ unparse val
-            lift . lift . putStrLn $ key ++ " = " ++ valStr
+            lift (unparse (Func "=" [Var key, val])) >>= lift . lift . putStrLn
 
     findVars (Var v)       = Set.singleton v
     findVars (Func _ args) = foldr Set.union Set.empty $ map findVars args

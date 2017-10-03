@@ -171,11 +171,10 @@ expr0 = do
 
 func :: Monad m => PLParserT m Node
 func = do
-  p <- prim
+  p <- anything
   case p of
-    Atom a -> do
+    Tk.Func f -> do
       xs <- do
-        lparen
         args <- (do
           arg0 <- lowerExpr 1000
           rest <- many $ do
@@ -184,13 +183,13 @@ func = do
           return $ arg0:rest) <|> return []
         rparen <|> failParse "expected a close parenthesis"
         return $ args
-      return $ Func a xs
-    _ -> failParse "not a func"
+      return $ Func f xs
+    _ -> failParse "not a functor"
 
 list :: Monad m => PLParserT m Node
 list = do
   lbracket
-  (<|>) (rbracket >> (return Nil)) $ do
+  (<|>) (rbracket >> return Nil) $ do
     v <- lowerExpr 1000
     vs <- many $ do
       commaSep

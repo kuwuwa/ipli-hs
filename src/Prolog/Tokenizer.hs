@@ -37,8 +37,14 @@ tokenize code = convert $ flip runParser (StrState code beginPos) $ do
 
 token :: StrParser Token
 token = foldl1 (<|>) $ map (spaces >>) tokenRules
-  where tokenRules = [period, atom, var, num, str, lparen, rparen, lbracket, rbracket, bar,
+  where tokenRules = [period, func, atom, var, num, str, lparen, rparen, lbracket, rbracket, bar,
                       failParse "unknown token"]
+
+func :: StrParser Token
+func = do
+  (Atom name _) <- atom
+  exact '('
+  return $ Func name
 
 atom :: StrParser Token
 atom = atomNormal <|> atomSymbols <|> atomQuoted <|> atomOthers <|> failNotAtom

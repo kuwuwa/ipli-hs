@@ -42,7 +42,7 @@ token = foldl1 (<|>) $ map (spaces >>) tokenRules
 
 func :: StrParser Token
 func = do
-  (Atom name _) <- atom
+  Atom name _ <- atom
   exact '('
   return $ Func name
 
@@ -62,7 +62,7 @@ atom = atomNormal <|> atomSymbols <|> atomQuoted <|> atomOthers <|> failNotAtom
 
     atomQuoted :: StrParser Token
     atomQuoted = do
-      body <- quotedWith '\''
+      body <- quoteWith '\''
       return $ Atom body True
 
     atomOthers :: StrParser Token
@@ -99,13 +99,12 @@ num = decimal <|> int <|> failParse "not a number"
         some digit -- fracPart
         option $ do -- exponent
           oneOfChars "eE"
-          option $ exact '-'
           int
       return $ PFloat (read value)
 
 str :: StrParser Token
 str = do
-  body <- quotedWith '"'
+  body <- quoteWith '"'
   return $ Str body
 
 lparen :: StrParser Token
@@ -133,8 +132,8 @@ bar = exact '|' >> return Bar
 -- utility functions
 -------------------------------------------------------------
 
-quotedWith :: Char -> StrParser String
-quotedWith q = do
+quoteWith :: Char -> StrParser String
+quoteWith q = do
   exact q -- begin quote
   body <- many $ except (oneOfChars (q:"\\")) char <|> escSeq
   exact q -- end quote

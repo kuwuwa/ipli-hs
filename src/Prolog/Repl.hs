@@ -87,7 +87,7 @@ repl = (fst <$>) $ flip runStateT initEnvironment $ do
     execClause clause = lift $ do
       case clause of
         Func ":-" [node] -> do
-          let shownVars = findVars node
+          let shownVars = collectVars node
           status <- runBacktrackT (call node >> ask shownVars) (return . Backtrack.OK)
           lift . putStrLn $ case status of
             Backtrack.OK () -> "" -- nope
@@ -96,6 +96,7 @@ repl = (fst <$>) $ flip runStateT initEnvironment $ do
         _ -> do
           liftDB $ appendClause clause
           lift $ putStrLn "[IPLI] registered"
+        -- TODO: operator registration
 
     ask :: Set String -> ProverT () IO ()
     ask shown = do
@@ -112,6 +113,6 @@ repl = (fst <$>) $ flip runStateT initEnvironment $ do
           printBinding (key, val) = do
             lift (unparse (Func "=" [Var key, val])) >>= lift . lift . putStrLn
 
-    findVars (Var v)       = Set.singleton v
-    findVars (Func _ args) = foldr Set.union Set.empty $ map findVars args
-    findVars _             = Set.empty
+    collectVars (Var v)       = Set.singleton v
+    collectVars (Func _ args) = foldr Set.union Set.empty $ map collectVars args
+    collectVars _             = Set.empty

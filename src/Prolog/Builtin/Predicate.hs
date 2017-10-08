@@ -6,10 +6,12 @@ module Prolog.Builtin.Predicate (
 
 import           Prolog.Node
 import           Prolog.Prover
+import           Prolog.Unparser
 
 import           Lib.Backtrack
 
 import           Control.Monad
+import           Control.Monad.Trans.Class
 import           Control.Applicative
 
 import qualified Data.Map as Map
@@ -149,7 +151,7 @@ compound :: Monad m => Predicate r m
 compound [term] = do
   case term of
     Func _ _ -> ok
-    _      -> failWith $ "compound expected, but got " ++ typeOf term
+    _        -> failWith $ "compound expected, but got " ++ typeOf term
 
 ------------------------------
 
@@ -193,15 +195,16 @@ neqNum :: Monad m => Predicate r m
 neqNum = compareNum "=\\=" (/=)
 
 {-# INLINE compareNum #-}
-compareNum :: (Monad m) =>
-    String -> (forall a. Ord a => a -> a -> Bool) -> Predicate r m
+compareNum :: Monad m => String -> (forall a. Ord a => a -> a -> Bool) -> Predicate r m
 compareNum cmpSymbol cmp [lhs, rhs] = do
   assertNumber lhs >> assertNumber rhs
-  guard $ case (lhs, rhs) of
-    (PInt lv,   PInt rv)   -> lv             `cmp` rv
-    (PFloat lv, PFloat rv) -> lv             `cmp` rv
-    (PInt lv,   PFloat rv) -> fromInteger lv `cmp` rv
-    (PFloat lv, PInt rv)   -> lv             `cmp` fromInteger rv
-  <|> failWith msg
-  where
-    msg = "`" ++ show lhs ++ " " ++ cmpSymbol ++ " " ++ show rhs ++ "` does not hold"
+  let res = case (lhs, rhs) of
+        (PInt lv,   PInt rv)   -> lv             `cmp` rv
+        (PFloat lv, PFloat rv) -> lv             `cmp` rv
+        (PInt lv,   PFloat rv) -> fromInteger lv `cmp` rv
+        (PFloat lv, PInt rv)   -> lv             `cmp` fromInteger rv
+  if res then return ()
+  else do
+    lhsStr <- lift $ unparse lhs
+    rhsStr <- lift $ unparse rhs
+    failWith $ "`" ++ lhsStr ++ " " ++ cmpSymbol ++ " " ++ rhsStr ++ "` does not hold"

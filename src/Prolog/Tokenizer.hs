@@ -75,10 +75,11 @@ atom = atomNormal <|> atomSymbols <|> atomQuoted <|> atomOthers <|> failNotAtom
 
 var :: StrParser Token
 var = varLexer <|> failParse "not a variable"
-  where varLexer = do
-          varHead <- upper <|> exact '_'
-          varTail <- many $ lower <|> upper <|> digit <|> exact '_'
-          return (Var $ varHead:varTail)
+  where
+    varLexer = do
+      varHead <- upper <|> exact '_'
+      varTail <- many $ lower <|> upper <|> digit <|> exact '_'
+      return (Var $ varHead:varTail)
 
 num :: StrParser Token
 num = decimal <|> int <|> failParse "not a number"
@@ -93,14 +94,14 @@ num = decimal <|> int <|> failParse "not a number"
 
     decimal :: StrParser Token
     decimal = do
-      value <- consume $ do
+      lit <- consume $ do
         int -- intPart
         exact '.' 
         some digit -- fracPart
         option $ do -- exponent
           oneOfChars "eE"
           int
-      return $ PFloat (read value)
+      return $ PFloat (read lit)
 
 str :: StrParser Token
 str = do

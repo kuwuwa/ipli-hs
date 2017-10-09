@@ -91,8 +91,8 @@ repl = (fst <$>) $ flip runStateT initEnvironment $ do
           let shownVars = collectVars node
           status <- runBacktrackT (call node >> ask shownVars) (return . Backtrack.OK)
           lift . putStrLn $ case status of
-            Backtrack.OK () -> "" -- nope
-            Backtrack.Fail msg -> "[IPLI] failed: " ++ msg
+            Backtrack.OK () -> "[IPLI] true"
+            Backtrack.Fail msg -> "[IPLI] false"
             Backtrack.Fatal msg -> "[IPLI] error: " ++ msg
         _ -> do
           liftDB $ appendClause clause

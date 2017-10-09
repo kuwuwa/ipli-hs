@@ -1,4 +1,4 @@
-{-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE RankNTypes #-}
 
 module Prolog.Builtin.Predicate (
     builtinPredicates
@@ -54,31 +54,28 @@ builtinPredicates = Map.fromList [
   , (("abolish", 1), abolish)
   , (("findall", 3), findall)
 
-  -- IO
-
   , (("op",         3), op)
   , (("current_op", 3), currentOp)
   --}
 
+  , (("\\+",    1), neg)
   , (("once",   1), once)
   , (("repeat", 0), repeat')
 
-  {--
   , (("atom_length",  2), atomLength)
   , (("atom_concat",  3), atomConcat)
+  {--
   , (("sub_atom",     5), subAtom)
   , (("atom_chars",   2), atomChars)
   , (("number_chars", 2), numberChars)
   , (("number_codes", 2), numberCodes)
   , (("number_chars", 2), numberChars)
-
-  , (("halt", 0), halt)
   --}
   ]
 
 ioPredicates :: MonadIO m => PredDatabase r m
 ioPredicates = Map.fromList [
-    (("print",  1), print')
+    (("write",  1), write)
   ]
 
 ------------------------------
@@ -166,12 +163,12 @@ compound [term] = do
 
 ------------------------------
 
--- ("eq", 2)
+-- ("==", 2)
 eq :: Monad m => Predicate r m
 eq [lhs, rhs] = do
   if lhs == rhs then ok else failWith "eq"
 
--- ("neq", 2)
+-- ("=/=", 2)
 neq :: Monad m => Predicate r m
 neq [lhs, rhs] = do
   if lhs /= rhs then ok else failWith "neq"
@@ -222,14 +219,55 @@ compareNum cmpSymbol cmp [lhs, rhs] = do
 
 ------------------------------
 
+write :: MonadIO m => Predicate r m
+write [term] = resolve term >>= lift . unparse >>= liftIO . putStrLn
+
+------------------------------
+
+-- ("\\+", 1)
+neg :: Monad m => Predicate r m
+neg [term] = BacktrackT $ \k -> do
+  res <- runBacktrackT (call term) k
+  case res of
+    OK _   -> do
+      lit <- unparse term
+      return $ Fail (lit ++ " was achieved")
+    Fail _ -> runBacktrackT ok k
+    fatal  -> return fatal
+
+-- ("once", 1)
 once :: Monad m => Predicate r m
 once [goal] = call goal >> cut
 
+-- ("repeat", 0)
 repeat' :: Monad m => Predicate r m
 repeat' [] = return () <|> repeat' []
 
 ------------------------------
 
-print' :: MonadIO m => Predicate r m
-print' [term] = resolve term >>= lift . unparse >>= liftIO . putStrLn
+-- ("atom_length",  2)
+atomLength :: Monad m => Predicate r m
+atomLength [a0, a1] = do
+  Atom a <- assertAtom a0
+  unify (PInt $ fromIntegral (length a)) a1
+
+-- ("atom_concat",  3)
+atomConcat :: Monad m => Predicate r m
+atomConcat [a0, a1, a2] = do
+  case (a0, a1, a2) of
+    (Atom l0, Atom l1, _) -> unify (Atom $ l0 ++ l1) a2
+    (_, _, Atom l2)       -> foldr1 (<|>) $ map f (splitInTwo l2) 
+    _                     -> failWith "atomConcat"
+  where f (s0, s1) = unify a0 (Atom s0) >> unify a1 (Atom s1)
+
+
+splitInTwo :: String -> [(String, String)]
+splitInTwo [] = [("", "")]
+splitInTwo (x:xs) = ("", x:xs) : map (\(a, b) -> (x:a, b)) (splitInTwo xs)
+
+-- ("sub_atom",     5)
+-- ("atom_chars",   2)
+-- ("number_chars", 2)
+-- ("number_codes", 2)
+-- ("number_chars", 2)
 

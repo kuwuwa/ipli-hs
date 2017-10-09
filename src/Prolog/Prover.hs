@@ -98,15 +98,15 @@ call :: Monad m => Node -> ProverT r m ()
 call node = do
   assertCallable node
   let (name, args) = case node of
-        Atom n -> (n, [])
-        Func p a  -> (p, a)
+        Atom n   -> (n, [])
+        Func p a -> (p, a)
       arity = length args
   procMaybe <- lift $ gets (Map.lookup (name, arity) . predDatabase)
   entriesMaybe <- lift $ gets (Map.lookup (name, arity) . database)
   case (procMaybe, entriesMaybe) of
-    (Just proc, _) -> mapM resolve args >>= proc
+    (Just proc, _)    -> mapM resolve args >>= proc
     (_, Just entries) -> foldr (<|>) failNoAnswer $ map (exec args) entries
-    _ -> fatalWith $ "no such predicate: " ++ name
+    _                 -> fatalWith $ "no such predicate: " ++ name
   where
     exec args p = do
       (fParams, fBody) <- fresh p
@@ -211,47 +211,65 @@ fresh (params, body) = do
 -- handy functions
 ------------------------------------------------------------
 
-assertAtom :: Monad m => Node -> ProverT r m ()
+assertAtom :: Monad m => Node -> ProverT r m Node
 assertAtom node = case node of
-  Atom _ -> ok
+  Atom _ -> return node
+  Var _  -> fatalWith $ "arguments are not sufficiently instantiated"
   _      -> fatalWith $ "atom expected, but got " ++ typeOf node
 
-assertNumber :: Monad m => Node -> ProverT r m ()
+assertNumber :: Monad m => Node -> ProverT r m Node
 assertNumber node = case node of
-  PInt _   -> ok
-  PFloat _ -> ok
+  PInt _   -> return node
+  PFloat _ -> return node
+  Var _    -> fatalWith $ "arguments are not sufficiently instantiated"
   _        -> fatalWith $ "number expected, but got " ++ typeOf node
 
-assertPInt :: Monad m => Node -> ProverT r m ()
+assertPInt :: Monad m => Node -> ProverT r m Node
 assertPInt node = case node of
-  PInt _ -> ok
+  PInt _ -> return node
+  Var _  -> fatalWith $ "arguments are not sufficiently instantiated"
   _      -> fatalWith $ "integer expected, but got " ++ typeOf node
 
-assertPFloat :: Monad m => Node -> ProverT r m ()
+assertPFloat :: Monad m => Node -> ProverT r m Node
 assertPFloat node = case node of
-  PFloat _ -> ok
+  PFloat _ -> return node
+  Var _    -> fatalWith $ "arguments are not sufficiently instantiated"
   _        -> fatalWith $ "float expected, but got " ++ typeOf node
 
-assertStr :: Monad m => Node -> ProverT r m ()
+assertStr :: Monad m => Node -> ProverT r m Node
 assertStr node = case node of
-  Str _ -> ok
+  Str _ -> return node 
+  Var _ -> fatalWith $ "arguments are not sufficiently instantiated"
   _     -> fatalWith $ "string expected, but got " ++ typeOf node
 
-assertNil :: Monad m => Node -> ProverT r m ()
+assertNil :: Monad m => Node -> ProverT r m Node
 assertNil node = case node of
-  Nil -> ok
-  _   -> fatalWith $ "nil expected, but got " ++ typeOf node
+  Nil    -> return node
+  Var _  -> fatalWith $ "arguments are not sufficiently instantiated"
+  _      -> fatalWith $ "nil expected, but got " ++ typeOf node
 
-assertFunc :: Monad m => Node -> ProverT r m ()
+assertFunc :: Monad m => Node -> ProverT r m Node
 assertFunc node = case node of
-  Func _ _ -> ok
+  Func _ _ -> return node
+  Var _    -> fatalWith $ "arguments are not sufficiently instantiated"
   _        -> fatalWith $ "functor expected, but got " ++ typeOf node
 
-assertCallable :: Monad m => Node -> ProverT r m ()
+assertCallable :: Monad m => Node -> ProverT r m Node
 assertCallable node = case node of
-  Atom _   -> ok
-  Func _ _ -> ok
+  Atom _   -> return node
+  Func _ _ -> return node
+  Var _    -> fatalWith $ "arguments are not sufficiently instantiated"
   _        -> fatalWith $ "callable expected, but got " ++ typeOf node
+
+assertAtomic :: Monad m => Node -> ProverT r m Node
+assertAtomic node = case node of
+  Atom _   -> return node
+  PInt _   -> return node
+  PFloat _ -> return node
+  Str _    -> return node
+  Nil      -> return node
+  _        -> fatalWith $ "atomic expected, but got " ++ typeOf node
+
 
 typeOf :: Node -> String
 typeOf (Atom _)   = "atom"

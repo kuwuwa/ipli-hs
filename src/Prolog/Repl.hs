@@ -17,10 +17,11 @@ import           Prolog.Prover    (Environment(..), ProverT, liftDB, call)
 import           Prolog.Tokenizer (tokenize)
 import           Prolog.Unparser  (unparse)
 
-import           Prolog.Builtin.Predicate (builtinPredicates)
+import           Prolog.Builtin.Predicate (builtinPredicates, ioPredicates)
 
-import           Control.Monad
 import           Control.Applicative
+import           Control.Monad
+import           Control.Monad.IO.Class
 import           Control.Monad.Trans.Class
 import           Control.Monad.Trans.State
 
@@ -32,11 +33,11 @@ import qualified Data.Set        as Set
 import           System.Environment
 import           System.IO
 
-initEnvironment :: Monad m => Environment r m
+initEnvironment :: MonadIO m => Environment r m
 initEnvironment = Environment {
     bindings = Map.empty
   , database = Map.empty
-  , predDatabase = builtinPredicates
+  , predDatabase = Map.union builtinPredicates ioPredicates
   , varNum = 0
   , opData = initOpData
   }

@@ -10,6 +10,7 @@ module Lib.Backtrack (
 
 import           Control.Applicative
 import           Control.Monad.Trans.Class
+import           Control.Monad.IO.Class
 
 type Msg = String
 
@@ -66,6 +67,10 @@ instance Monad (BacktrackT r m) where
 instance MonadTrans (BacktrackT r) where
   {-# INLINE lift #-}
   lift m = BacktrackT (m >>=)
+
+instance MonadIO m => MonadIO (BacktrackT r m) where
+  {-# INLINE liftIO #-}
+  liftIO = lift . liftIO
 
 ------------------------------------------------------------
 

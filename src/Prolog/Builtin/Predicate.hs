@@ -2,6 +2,7 @@
 
 module Prolog.Builtin.Predicate (
     builtinPredicates
+  , ioPredicates
   ) where
 
 import           Prolog.Node
@@ -12,6 +13,7 @@ import           Lib.Backtrack
 
 import           Control.Monad
 import           Control.Monad.Trans.Class
+import           Control.Monad.IO.Class
 import           Control.Applicative
 
 import qualified Data.Map as Map
@@ -56,10 +58,12 @@ builtinPredicates = Map.fromList [
 
   , (("op",         3), op)
   , (("current_op", 3), currentOp)
+  --}
 
   , (("once",   1), once)
   , (("repeat", 0), repeat')
 
+  {--
   , (("atom_length",  2), atomLength)
   , (("atom_concat",  3), atomConcat)
   , (("sub_atom",     5), subAtom)
@@ -71,6 +75,13 @@ builtinPredicates = Map.fromList [
   , (("halt", 0), halt)
   --}
   ]
+
+ioPredicates :: MonadIO m => PredDatabase r m
+ioPredicates = Map.fromList [
+    (("print",  1), print')
+  ]
+
+------------------------------
 
 -- ("true", 0)
 true :: Monad m => Predicate r m
@@ -208,3 +219,17 @@ compareNum cmpSymbol cmp [lhs, rhs] = do
     lhsStr <- lift $ unparse lhs
     rhsStr <- lift $ unparse rhs
     failWith $ "`" ++ lhsStr ++ " " ++ cmpSymbol ++ " " ++ rhsStr ++ "` does not hold"
+
+------------------------------
+
+once :: Monad m => Predicate r m
+once [goal] = call goal >> cut
+
+repeat' :: Monad m => Predicate r m
+repeat' [] = return () <|> repeat' []
+
+------------------------------
+
+print' :: MonadIO m => Predicate r m
+print' [term] = resolve term >>= lift . unparse >>= liftIO . putStrLn
+

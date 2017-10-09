@@ -7,7 +7,6 @@ module Prolog.Builtin.Predicate (
 
 import           Prolog.Node
 import           Prolog.Prover
-import           Prolog.Unparser
 
 import           Lib.Backtrack
 

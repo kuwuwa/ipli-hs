@@ -13,9 +13,8 @@ import qualified Prolog.Token     as Token
 import           Prolog.Database  (appendClause)
 import           Prolog.Operator  (OpData, initOpData)
 import           Prolog.Parser    (TokenStream(..), runPLParser, topLevel)
-import           Prolog.Prover    (Environment(..), ProverT, liftDB, call)
+import           Prolog.Prover    (Environment(..), ProverT, liftDB, call, unparse)
 import           Prolog.Tokenizer (tokenize)
-import           Prolog.Unparser  (unparse)
 
 import           Prolog.Builtin.Predicate (builtinPredicates, ioPredicates)
 

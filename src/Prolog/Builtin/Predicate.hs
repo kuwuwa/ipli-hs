@@ -63,6 +63,7 @@ builtinPredicates = Map.fromList [
 
   , (("atom_length",  2), atomLength)
   , (("atom_concat",  3), atomConcat)
+
   {--
   , (("sub_atom",     5), subAtom)
   , (("atom_chars",   2), atomChars)
@@ -212,14 +213,13 @@ compareNum cmpSymbol cmp [lhs, rhs] = do
         (PFloat lv, PInt rv)   -> lv             `cmp` fromInteger rv
   if res then return ()
   else do
-    lhsStr <- lift $ unparse lhs
-    rhsStr <- lift $ unparse rhs
+    [lhsStr, rhsStr] <- lift $ mapM unparse [lhs, rhs]
     failWith $ "`" ++ lhsStr ++ " " ++ cmpSymbol ++ " " ++ rhsStr ++ "` does not hold"
 
 ------------------------------
 
 write :: MonadIO m => Predicate r m
-write [term] = resolve term >>= lift . unparse >>= liftIO . putStrLn
+write [term] = return term >>= lift . unparse >>= liftIO . putStrLn
 
 ------------------------------
 
@@ -228,9 +228,7 @@ neg :: Monad m => Predicate r m
 neg [term] = BacktrackT $ \k -> do
   res <- runBacktrackT (call term) k
   case res of
-    OK _   -> do
-      lit <- unparse term
-      return $ Fail (lit ++ " was achieved")
+    OK _   -> unparse term >>= return . Fail . (++ "was achieved")
     Fail _ -> runBacktrackT ok k
     fatal  -> return fatal
 
@@ -256,9 +254,8 @@ atomConcat [a0, a1, a2] = do
   case (a0, a1, a2) of
     (Atom l0, Atom l1, _) -> unify (Atom $ l0 ++ l1) a2
     (_, _, Atom l2)       -> foldr1 (<|>) $ map f (splitInTwo l2) 
-    _                     -> failWith "atomConcat"
+    _                     -> fatalWith "[atomConcat] invalid arguments"
   where f (s0, s1) = unify a0 (Atom s0) >> unify a1 (Atom s1)
-
 
 splitInTwo :: String -> [(String, String)]
 splitInTwo [] = [("", "")]

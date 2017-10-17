@@ -86,7 +86,7 @@ repl = (fst <$>) $ flip runStateT initEnvironment $ do
     execClause :: Node -> ProverT () IO ()
     execClause clause = lift $ do
       case clause of
-        Func ":-" [node] -> do
+        Func "?-" [node] -> do
           let shownVars = collectVars node
           status <- runBacktrackT (call node >> ask shownVars) (return . Backtrack.OK)
           lift . putStrLn $ case status of

@@ -82,7 +82,7 @@ initOpData = mkOpData (Map.fromList binaryOperators)
                       (Map.fromList prefixOperators)
                       (Map.fromList suffixOperators)
   where
-    operators = concat . map (curry3 makeOperators) $ [
+    operators = concat . map makeOperators $ [
         (1200, Xfx, ["-->", ":-"])
       , (1200, Fx,  [":-", "?-"])
       , (1100, Xfy, [";", "|"])
@@ -106,5 +106,4 @@ initOpData = mkOpData (Map.fromList binaryOperators)
     prefixOperators = filter (operOneOf [Fx, Fy]) operators
     suffixOperators = filter (operOneOf [Xf, Yf]) operators
     operOneOf opTypes = (`elem` opTypes) . (\(_, Operator _ _ opT) -> opT)
-    makeOperators prec opType = map $ \name -> (name, Operator name prec opType)
-    curry3 f (x, y, z) = f x y z
+    makeOperators (prec, opType, atoms) = map (\name -> (name, Operator name prec opType)) atoms

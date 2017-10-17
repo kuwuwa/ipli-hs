@@ -137,28 +137,24 @@ resolve node = do
     Func name args -> Func name <$> mapM resolve args
     _ -> return node
 
+
 bind :: Monad m => Node -> Node -> ProverT r m ()
 bind x y = do
   x' <- resolve x
   y' <- resolve y
   case (x', y') of
-    (Var xv, _)
-      | xv == "_" -> ok -- _ should not be bound to any value
-      | otherwise -> do
-        defer (liftBindingsP $ modify (Map.delete xv))
-        case y' of
-          Var yv -> defer (liftBindingsP $ modify (Map.delete yv))
-          _      -> ok
-        liftBindingsP . modify $ Map.insert xv y'
-    (_, Var yv)
-      | yv == "_" -> ok -- _ should not be bound to any value
-      | otherwise -> do
-        defer (liftBindingsP $ modify (Map.delete yv))
-        case x' of
-          Var xv -> defer (liftBindingsP $ modify (Map.delete xv))
-          _      -> ok
-        liftBindingsP . modify $ Map.insert yv x'
+    (Var xv, _) -> bind' x' y'
+    (_, Var yv) -> bind' y' x'
     _ -> failWith "can't bind two nonvars"
+  where
+    bind' (Var v) term =
+      if v == "_" then ok else do
+      defer $ liftBindingsP (modify $ Map.delete v)
+      case term of
+        Var w -> defer $ liftBindingsP (modify $ Map.delete w)
+        _     -> ok
+      liftBindingsP $ modify (Map.insert v term)
+
 
 unify :: Monad m => Node -> Node -> ProverT r m ()
 unify x y = do
@@ -167,7 +163,7 @@ unify x y = do
   case (x', y') of
     (Func p0 a0, Func p1 a1) -> do
       when (p0 /= p1) $ failWith ("can't unify " ++ show x' ++ " and " ++ show y')
-      sequence_ $ zipWith unify a0 a1
+      zipWithM_ unify a0 a1
     (Var _, _) -> bind x' y'
     (_, Var _) -> bind x' y'
     _

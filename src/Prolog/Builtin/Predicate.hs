@@ -10,17 +10,19 @@ import           Prolog.Prover
 
 import           Lib.Backtrack
 
-import           Control.Monad
 import           Control.Monad.Trans.Class
 import           Control.Monad.IO.Class
 import           Control.Applicative
 
 import qualified Data.Map as Map
 
+import           System.Exit (exitSuccess)
+
 builtinPredicates :: Monad m => PredDatabase r m
 builtinPredicates = Map.fromList [
     (("true", 0), true)
   , (("fail", 0), fail')
+  , (("call", 1), callp)
 
   , ((",",   2), andp)
   , ((";",   2), orp)
@@ -76,6 +78,7 @@ builtinPredicates = Map.fromList [
 ioPredicates :: MonadIO m => PredDatabase r m
 ioPredicates = Map.fromList [
     (("write",  1), write)
+  , (("halt", 0), halt)
   ]
 
 ------------------------------
@@ -87,6 +90,10 @@ true _ = ok
 -- ("fail", 0)
 fail' :: Monad m => Predicate r m
 fail' _ = failWith "fail"
+
+-- ("call", 1)
+callp :: Monad m => Predicate r m
+callp [term] = assertCallable term  >> call term
 
 -- (",", 2)
 andp :: Monad m => Predicate r m
@@ -114,7 +121,7 @@ var :: Monad m => Predicate r m
 var [term] = do
   case term of
     Var _ -> ok
-    _     -> failWith $ "variable expected, but got " ++ typeOf term
+    _     -> typeMismatch "variable" term
 
 -- ("nonvar", 1)
 nonvar :: Monad m => Predicate r m
@@ -130,7 +137,7 @@ atom :: Monad m => Predicate r m
 atom [term] = do
   case term of
     Atom _ -> ok
-    _      -> failWith $ "atom expected, but got " ++ typeOf term
+    _      -> typeMismatch "atom" term
 
 -- ("number", 1)
 number :: Monad m => Predicate r m
@@ -138,28 +145,28 @@ number [term] = do
   case term of
     PInt _   -> ok
     PFloat _ -> ok
-    _        -> failWith $ "number expected, but got " ++ typeOf term
+    _        -> typeMismatch "number" term
 
 -- ("integer", 1)
 integer :: Monad m => Predicate r m
 integer [term] = do
   case term of
     PInt _ -> ok
-    _      -> failWith $ "integer expected, but got " ++ typeOf term
+    _      -> typeMismatch "integer" term
 
 -- ("float", 1)
 float :: Monad m => Predicate r m
 float [term] = do
   case term of
     PFloat _ -> ok
-    _        -> failWith $ "float expected, but got" ++ typeOf term
+    _        -> typeMismatch "float" term
 
 -- ("compound", 1)
 compound :: Monad m => Predicate r m
 compound [term] = do
   case term of
     Func _ _ -> ok
-    _        -> failWith $ "compound expected, but got " ++ typeOf term
+    _        -> typeMismatch "compound" term
 
 ------------------------------
 
@@ -206,20 +213,17 @@ neqNum = compareNum "=\\=" (/=)
 compareNum :: Monad m => String -> (forall a. Ord a => a -> a -> Bool) -> Predicate r m
 compareNum cmpSymbol cmp [lhs, rhs] = do
   assertNumber lhs >> assertNumber rhs
-  let res = case (lhs, rhs) of
-        (PInt lv,   PInt rv)   -> lv             `cmp` rv
-        (PFloat lv, PFloat rv) -> lv             `cmp` rv
-        (PInt lv,   PFloat rv) -> fromInteger lv `cmp` rv
-        (PFloat lv, PInt rv)   -> lv             `cmp` fromInteger rv
+  res <- do
+    case (lhs, rhs) of
+      (PInt lv,   PInt rv)   -> return $ lv             `cmp` rv
+      (PFloat lv, PFloat rv) -> return $ lv             `cmp` rv
+      (PInt lv,   PFloat rv) -> return $ fromInteger lv `cmp` rv
+      (PFloat lv, PInt rv)   -> return $ lv             `cmp` fromInteger rv
+      _ -> argsNotInstantiated
   if res then return ()
   else do
     [lhsStr, rhsStr] <- lift $ mapM unparse [lhs, rhs]
     failWith $ "`" ++ lhsStr ++ " " ++ cmpSymbol ++ " " ++ rhsStr ++ "` does not hold"
-
-------------------------------
-
-write :: MonadIO m => Predicate r m
-write [term] = return term >>= lift . unparse >>= liftIO . putStrLn
 
 ------------------------------
 
@@ -246,7 +250,7 @@ repeat' [] = return () <|> repeat' []
 atomLength :: Monad m => Predicate r m
 atomLength [a0, a1] = do
   Atom a <- assertAtom a0
-  unify (PInt $ fromIntegral (length a)) a1
+  unify a1 (PInt $ fromIntegral (length a))
 
 -- ("atom_concat",  3)
 atomConcat :: Monad m => Predicate r m
@@ -263,7 +267,20 @@ splitInTwo (x:xs) = ("", x:xs) : map (\(a, b) -> (x:a, b)) (splitInTwo xs)
 
 -- ("sub_atom",     5)
 -- ("atom_chars",   2)
+
 -- ("number_chars", 2)
+-- numberChars :: Monad m => Predicate r m
+-- numberChars [num, repr] = do
+
 -- ("number_codes", 2)
 -- ("number_chars", 2)
 
+------------------------------
+
+-- ("write", 1)
+write :: MonadIO m => Predicate r m
+write [term] = return term >>= lift . unparse >>= liftIO . putStrLn
+
+-- ("halt", 0)
+halt :: MonadIO m => Predicate r m
+halt [] = liftIO exitSuccess

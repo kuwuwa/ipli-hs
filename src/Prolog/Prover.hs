@@ -10,10 +10,10 @@ module Prolog.Prover (
   , liftDB
   , liftPredDB
   , liftOpData
-  , bind
+  -- , bind
   , call
-  , fresh
-  , resolve
+  -- , fresh
+  -- , resolve
   , unify
   , unparse
   , assertAtom
@@ -23,7 +23,10 @@ module Prolog.Prover (
   , assertStr
   , assertNil
   , assertFunc
+  , assertCallable
   , typeOf
+  , argsNotInstantiated
+  , typeMismatch
   ) where
 
 import           Lib.Backtrack (BacktrackT(..), ok, failWith, fatalWith, defer)
@@ -95,12 +98,13 @@ liftOpData m = StateT $ \env -> do
 liftBindingsP :: Monad m => StateT Bindings m o -> ProverT r m o
 liftBindingsP = lift . liftBindings
 
+
 call :: Monad m => Node -> ProverT r m ()
 call node = do
   assertCallable node
   let (name, args) = case node of
         Atom n   -> (n, [])
-        Func p a -> (p, a)
+        Func f a -> (f, a)
       arity = length args
   procMaybe <- lift $ gets (Map.lookup (name, arity) . predDatabase)
   entriesMaybe <- lift $ gets (Map.lookup (name, arity) . database)
@@ -111,10 +115,11 @@ call node = do
   where
     exec args p = do
       (fParams, fBody) <- fresh p
-      sequence_ $ zipWith unify args fParams
+      zipWithM_ unify args fParams
       call $ fBody
 
     failNoAnswer = failWith "no more answer"
+
 
 resolve :: Monad m => Node -> ProverT r m Node
 resolve node = do
@@ -143,11 +148,11 @@ bind x y = do
   x' <- resolve x
   y' <- resolve y
   case (x', y') of
-    (Var xv, _) -> bind' x' y'
-    (_, Var yv) -> bind' y' x'
+    (Var xv, _) -> bind' xv y'
+    (_, Var yv) -> bind' yv x'
     _ -> failWith "can't bind two nonvars"
   where
-    bind' (Var v) term =
+    bind' v term =
       if v == "_" then ok else do
       defer $ liftBindingsP (modify $ Map.delete v)
       case term of
@@ -170,9 +175,10 @@ unify x y = do
       | x' == y'  -> ok
       | otherwise -> failWith $ "can't unify " ++ show x' ++ " and " ++ show y'
 
+
 fresh :: Monad m => ([Node], Node) -> ProverT r m ([Node], Node)
 fresh (params, body) = do
-  fParams <- mkRenames params
+  fParams <- mkFreshParams params
   let renames = map (\(Var v, Var fv) -> (v, fv)) $ filter (isVar . fst) (zip params fParams)
   fBody <- evalStateT (go body) (Map.fromList renames)
   return (fParams, fBody)
@@ -180,40 +186,39 @@ fresh (params, body) = do
     isVar (Var _) = True
     isVar _       = False
 
-    mkRenames = mapM $ \nd -> case nd of
-      Var _ -> Var <$> freshVar
+    mkFreshParams = mapM $ \nd -> case nd of
+      Var _ -> Var <$> mkFreshVar
       _ -> return nd
           
     go bd = case bd of
       Var v -> do
-        wMaybe <- gets $ Map.lookup v
-        case wMaybe of
+        w' <- gets $ Map.lookup v
+        case w' of
           Just w -> return $ Var w
           Nothing -> do
-            newVar <- lift freshVar
-            modify $ Map.insert v newVar
-            return $ Var newVar
-      Func p args -> Func p <$> sequence (map go args)
+            fVar <- lift mkFreshVar
+            modify $ Map.insert v fVar
+            return $ Var fVar
+      Func p args -> Func p <$> mapM go args
       _ -> return bd
 
-    freshVar :: Monad m => ProverT r m String
-    freshVar = do
-      num <- lift (gets varNum)
-      let newVar = "_G" ++ show num
-      exists <- liftBindingsP $ gets (Map.member newVar)
-      lift . modify $ \env -> env { varNum = num + 1 }
-      if exists then freshVar else return newVar
+    mkFreshVar :: Monad m => ProverT r m String
+    mkFreshVar = do
+      fVar <- ("_G" ++) <$> show <$> lift (gets varNum) 
+      exists <- liftBindingsP $ gets (Map.member fVar)
+      lift . modify $ \env -> env { varNum = varNum env + 1 }
+      if exists then mkFreshVar else return fVar
 
 ----------------------------------------------------------
 -- unparser
 ----------------------------------------------------------
 
 unparse :: Monad m => Node -> StateT (Environment r m) m String
-unparse (Atom a)   = return $ a -- TODO: quote when necessary
-unparse (Var v)    = return $ v
-unparse (PInt i)   = return $ show i
-unparse (PFloat f) = return $ show f
-unparse (Str s)    = return $ s
+unparse (Atom a)   = return a -- TODO: quote when necessary
+unparse (Var v)    = return v
+unparse (PInt i)   = return (show i)
+unparse (PFloat f) = return (show f)
+unparse (Str s)    = return s
 unparse Nil        = return "[]"
 unparse _func@(Func "[|]" [_, _]) = unparseList _func
 unparse _func@(Func _ _) = unparseFunc upperPrecLimit _func
@@ -248,33 +253,32 @@ unparse _func@(Func _ _) = unparseFunc upperPrecLimit _func
             let content = lhsStr ++ " " ++ name ++ " " ++ rhsStr
             return $ if needParen then "(" ++ content ++ ")" else content
           _ -> unparseFuncDefault func
-
-    unparseFunc prec func@(Func _ _) = unparseFuncDefault func
-
+    unparseFunc _ func@(Func _ _) = unparseFuncDefault func
     unparseFunc _ term = unparse term
 
     unparseFuncDefault (Func name args) = do
       -- 1000 is the precedence of comma
       argsStr <- mapM (unparseFunc $ pred 1000) args
-      return $ name ++ "(" ++ join ", " argsStr ++ ")"
+      return $ name ++ "(" ++ joinList ", " argsStr ++ ")"
 
     isListLit (Func "[|]" [_,_]) = True
     isListLit _ = False
 
-    join _ [] = ""
-    join delim (x:xs) = concat $ x : zipWith (++) (repeat delim) xs
+    joinList _ [] = ""
+    joinList delim (x:xs) = concat $ x : zipWith (++) (repeat delim) xs
 
+unparseList :: Monad m => Node -> StateT (Environment r m) m String
 unparseList (Func "[|]" [hd, tl]) = do
   hdStr <- unparse hd
   ("[" ++) <$> (hdStr ++) <$> unparseTail tl
-    where
-      unparseTail Nil = return "]"
-      unparseTail (Func "[|]" [hd, tl]) = do
-          hdStr <- unparse hd
-          (", " ++) <$> (hdStr ++) <$> unparseTail tl
-      unparseTail term = do
-          termStr <- unparse term
-          return $ " | " ++ termStr ++ "]"
+  where
+    unparseTail Nil = return "]"
+    unparseTail (Func "[|]" [hd', tl']) = do
+        hdStr <- unparse hd'
+        (", " ++) <$> (hdStr ++) <$> unparseTail tl'
+    unparseTail term = do
+        termStr <- unparse term
+        return $ " | " ++ termStr ++ "]"
 
 ------------------------------------------------------------
 -- handy functions
@@ -283,62 +287,64 @@ unparseList (Func "[|]" [hd, tl]) = do
 assertAtom :: Monad m => Node -> ProverT r m Node
 assertAtom node = case node of
   Atom _ -> return node
-  Var _  -> fatalWith $ "arguments are not sufficiently instantiated"
-  _      -> fatalWith $ "atom expected, but got " ++ typeOf node
+  Var _  -> argsNotInstantiated
+  _      -> typeMismatchFatal "atom" node
 
 assertNumber :: Monad m => Node -> ProverT r m Node
 assertNumber node = case node of
   PInt _   -> return node
   PFloat _ -> return node
-  Var _    -> fatalWith $ "arguments are not sufficiently instantiated"
-  _        -> fatalWith $ "number expected, but got " ++ typeOf node
+  Var _    -> argsNotInstantiated
+  _      -> typeMismatchFatal "number" node
 
 assertPInt :: Monad m => Node -> ProverT r m Node
 assertPInt node = case node of
   PInt _ -> return node
-  Var _  -> fatalWith $ "arguments are not sufficiently instantiated"
-  _      -> fatalWith $ "integer expected, but got " ++ typeOf node
+  Var _  -> argsNotInstantiated
+  _      -> typeMismatchFatal "integer" node
 
 assertPFloat :: Monad m => Node -> ProverT r m Node
 assertPFloat node = case node of
   PFloat _ -> return node
-  Var _    -> fatalWith $ "arguments are not sufficiently instantiated"
-  _        -> fatalWith $ "float expected, but got " ++ typeOf node
+  Var _    -> argsNotInstantiated
+  _        -> typeMismatchFatal "float" node
 
 assertStr :: Monad m => Node -> ProverT r m Node
 assertStr node = case node of
   Str _ -> return node 
-  Var _ -> fatalWith $ "arguments are not sufficiently instantiated"
-  _     -> fatalWith $ "string expected, but got " ++ typeOf node
+  Var _ -> argsNotInstantiated
+  _     -> typeMismatchFatal "string" node
 
 assertNil :: Monad m => Node -> ProverT r m Node
 assertNil node = case node of
   Nil    -> return node
-  Var _  -> fatalWith $ "arguments are not sufficiently instantiated"
-  _      -> fatalWith $ "nil expected, but got " ++ typeOf node
+  Var _  -> argsNotInstantiated
+  _      -> typeMismatchFatal "nil" node
+
 
 assertFunc :: Monad m => Node -> ProverT r m Node
 assertFunc node = case node of
   Func _ _ -> return node
-  Var _    -> fatalWith $ "arguments are not sufficiently instantiated"
-  _        -> fatalWith $ "functor expected, but got " ++ typeOf node
+  Var _    -> argsNotInstantiated
+  _        -> typeMismatchFatal "functor" node
 
 assertCallable :: Monad m => Node -> ProverT r m Node
 assertCallable node = case node of
   Atom _   -> return node
   Func _ _ -> return node
-  Var _    -> fatalWith $ "arguments are not sufficiently instantiated"
-  _        -> fatalWith $ "callable expected, but got " ++ typeOf node
+  Var _    -> argsNotInstantiated
+  _        -> typeMismatchFatal "callable" node
 
-assertAtomic :: Monad m => Node -> ProverT r m Node
-assertAtomic node = case node of
-  Atom _   -> return node
-  PInt _   -> return node
-  PFloat _ -> return node
-  Str _    -> return node
-  Nil      -> return node
-  _        -> fatalWith $ "atomic expected, but got " ++ typeOf node
+argsNotInstantiated :: Monad m => ProverT r m a
+argsNotInstantiated = fatalWith $ "arguments are not sufficiently instantiated"
 
+typeMismatchFatal :: Monad m => String -> Node -> ProverT r m a
+typeMismatchFatal expected actual =
+  fatalWith $ expected ++ " expected, but got " ++ typeOf actual
+
+typeMismatch :: Monad m => String -> Node -> ProverT r m a
+typeMismatch expected actual =
+  failWith $ expected ++ " expected, but got " ++ typeOf actual
 
 typeOf :: Node -> String
 typeOf (Atom _)   = "atom"

@@ -33,4 +33,4 @@ instance Show Node where
           showCdr v = " | " ++ show v ++ "]"
   show (Func proc args)     = join " " ("(Func" : proc : map show args) ++ ")"
     where join _ [] = ""
-          join delim (x:xs) = concat  $ x : zipWith (++) (repeat delim) xs
+          join delim (x:xs) = concat $ x : zipWith (++) (repeat delim) xs

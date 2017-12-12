@@ -3,7 +3,7 @@ module Prolog.Operator (
   , Operator(..)
   , OpState
   , OpMap
-  , OpData(zfzMap, fzMap, zfMap, precs) -- except the constructor
+  , OpData(..)
   , addOp
   , mkOpData
   , initOpData

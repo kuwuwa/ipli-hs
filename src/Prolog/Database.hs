@@ -5,7 +5,6 @@ module Prolog.Database (
   , getPredicates
   , appendClause
   , prependClause
-  , parseClause
   ) where
 
 import           Control.Monad.Trans.State

@@ -175,12 +175,8 @@ func = do
   case p of
     Tk.Func f -> do
       xs <- do
-        args <- (do
-          arg0 <- lowerExpr 1000
-          rest <- many $ do
-            commaSep
-            lowerExpr 1000
-          return $ arg0:rest) <|> return []
+        args <- (:) <$> lowerExpr 1000 <*> many (commaSep >> lowerExpr 1000)
+                <|> return []
         rparen <|> failParse "expected a close parenthesis"
         return $ args
       return $ Func f xs
@@ -189,14 +185,10 @@ func = do
 list :: Monad m => PLParserT m Node
 list = do
   lbracket
-  (<|>) (rbracket >> return Nil) $ do
-    v <- lowerExpr 1000
-    vs <- many $ do
-      commaSep
-      lowerExpr 1000
-    w <- (exactToken Tk.Bar >> lowerExpr 1000) <|> return Nil
-    rbracket
-    return $ foldr (\a b -> Func "[|]" [a,b]) w (v:vs)
+  vs <- (:) <$> lowerExpr 1000 <*> many (commaSep >> lowerExpr 1000) <|> return []
+  w <- (exactToken Tk.Bar >> lowerExpr 1000) <|> return Nil
+  rbracket
+  return $ foldr (\a b -> Func "[|]" [a,b]) w vs
 
 prim :: Monad m => PLParserT m Node
 prim = do

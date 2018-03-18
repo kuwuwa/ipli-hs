@@ -5,7 +5,8 @@ module Prolog.Operator (
   , OpMap
   , OpData(..)
   , addOp
-  , mkOpData
+  , opers
+  , readOpType
   , initOpData
   ) where
 
@@ -21,13 +22,13 @@ import           Control.Monad.Trans.State
 data OpType = Fx | Fy | Xf | Yf | Xfx | Xfy | Yfx
 
 instance Show OpType where
-  show Fx  = "Fx"
-  show Fy  = "Fy"
-  show Xf  = "Xf"
-  show Yf  = "Yf"
-  show Xfx = "Xfx"
-  show Xfy = "Xfy"
-  show Yfx = "Yfx"
+  show Fx  = "fx"
+  show Fy  = "fy"
+  show Xf  = "xf"
+  show Yf  = "yf"
+  show Xfx = "xfx"
+  show Xfy = "xfy"
+  show Yfx = "yfx"
 
 instance Eq OpType where
   Fx  == Fx  = True
@@ -66,12 +67,25 @@ mkOpData zfzMap' fzMap' zfMap' = OpData {
 
 addOp :: Operator -> OpData -> OpData
 addOp op@(Operator opName _ opType) opData =
-    mkOpData (updZfz $ zfzMap opData) (updFz $ fzMap opData) (updZf $ zfMap  opData)
+  mkOpData (updZfz $ zfzMap opData) (updFz $ fzMap opData) (updZf $ zfMap opData)
   where insert = Map.insert opName op
         (updFz, updZf, updZfz)
           | opType `elem` [Fx, Fy] = (insert, id ,id)
           | opType `elem` [Xf, Yf] = (id, insert, id)
           | otherwise              = (id, id, insert)
+
+opers :: OpData -> [Operator]
+opers (OpData { zfzMap = x, fzMap = y, zfMap = z }) = concat $ map Map.elems [x, y, z]
+
+readOpType :: String -> Maybe OpType
+readOpType "fx"  = Just Fx
+readOpType "fy"  = Just Fy
+readOpType "xf"  = Just Xf
+readOpType "yf"  = Just Yf
+readOpType "xfx" = Just Xfx
+readOpType "xfy" = Just Xfy
+readOpType "yfx" = Just Yfx
+readOpType  _    = Nothing
 
 ------------------------------
 
@@ -105,5 +119,5 @@ initOpData = mkOpData (Map.fromList binaryOperators)
     binaryOperators = filter (operOneOf [Xfx, Xfy, Yfx]) operators
     prefixOperators = filter (operOneOf [Fx, Fy]) operators
     suffixOperators = filter (operOneOf [Xf, Yf]) operators
-    operOneOf opTypes = (`elem` opTypes) . (\(_, Operator _ _ opT) -> opT)
+    operOneOf opTypes (_, Operator _ _ opT) = opT `elem` opTypes
     makeOperators (prec, opType, atoms) = map (\name -> (name, Operator name prec opType)) atoms

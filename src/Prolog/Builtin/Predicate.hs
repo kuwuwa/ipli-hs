@@ -8,16 +8,20 @@ module Prolog.Builtin.Predicate (
 import           Prolog.Node
 import           Prolog.Prover
 import           Prolog.Database
+import           Prolog.Operator (Operator(..), addOp, opers, readOpType)
 
 import           Lib.Backtrack
 
-import           Control.Monad.Trans.Class
-import           Control.Monad.IO.Class
 import           Control.Applicative
+import           Control.Monad.Trans.Class
+import           Control.Monad.Trans.State
+import           Control.Monad.IO.Class
 
 import qualified Data.Map as Map
 
 import           System.Exit (exitSuccess)
+
+import           Debug.Trace
 
 builtinPredicates :: Monad m => PredDatabase r m
 builtinPredicates = Map.fromList [
@@ -55,10 +59,10 @@ builtinPredicates = Map.fromList [
   , (("retract", 1), retract)
   , (("abolish", 1), abolish)
   , (("findall", 3), findall)
+  --}
 
   , (("op",         3), op)
   , (("current_op", 3), currentOp)
-  --}
 
   , (("\\+",    1), neg)
   , (("once",   1), once)
@@ -245,6 +249,26 @@ assertz [term] = do
     Left msg -> fatalWith msg
     Right _ -> ok
 
+------------------------------
+
+op :: Monad m => Predicate r m
+op [a, b, c] = do
+  PInt prec  <- assertPInt a
+  let precInt = fromInteger prec
+  Atom typ <- assertAtom b
+  Atom name <- assertAtom c
+  case readOpType typ of
+    Nothing -> fatalWith "invalid operator specifier"
+    Just opType -> lift . liftOpData $ modify' (addOp $ Operator name precInt opType)
+
+currentOp :: Monad m => Predicate r m
+currentOp [a, b, c] = do
+  opers <- map fmt <$> (lift . liftOpData $ gets opers)
+  foldr1 (<|>) $ map u opers
+  where fmt (Operator name prec opType) =
+          (Atom name, PInt (fromIntegral prec), Atom (show opType))
+        u (name, prec, opType) = unify a prec >> unify b opType >> unify c name
+  
 ------------------------------
 
 -- ("\\+", 1)

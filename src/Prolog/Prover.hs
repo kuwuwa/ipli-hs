@@ -7,6 +7,7 @@ module Prolog.Prover (
   , PredDatabase
   , ProverT
   , Environment(..)
+  , Function
   , liftDB
   , liftPredDB
   , liftOpData
@@ -16,6 +17,7 @@ module Prolog.Prover (
   , resolve
   , unify
   , unparse
+  , calc
   , assertAtom
   , assertNumber
   , assertPInt
@@ -55,17 +57,18 @@ type Args = [Node]
 
 type Bindings = Map String Node
 
+type ProverT r m = BacktrackT r (EnvT r m)
+
 type Predicate r m = Args -> ProverT r m ()
 
 type PredDatabase r m = Map (Name, Arity) (Predicate r m)
-
-type ProverT r m = BacktrackT r (EnvT r m)
 
 ------------------------------------------------------------
 
 data Environment r m = Environment {
     bindings :: Bindings
   , database :: Database
+  , funcDatabase :: FuncDatabase r m
   , predDatabase :: Map (Name, Arity) (Predicate r m)
   , varNum :: Int
   , opData :: OpData
@@ -82,6 +85,11 @@ liftDB :: Monad m => StateT Database m o -> EnvT r m o
 liftDB m = StateT $ \env -> do
   (x, db') <- runStateT m $ database env
   return (x, env { database = db' })
+
+liftFuncDB :: Monad m => StateT (FuncDatabase r m) m o -> EnvT r m o
+liftFuncDB m = StateT $ \env -> do
+  (x, db') <- runStateT m $ funcDatabase env
+  return (x, env { funcDatabase = db' })
 
 liftPredDB :: Monad m => StateT (PredDatabase r m) m o -> EnvT r m o
 liftPredDB m = StateT $ \env -> do
@@ -208,6 +216,31 @@ fresh (params, body) = do
       exists <- liftBindingsP $ gets (Map.member fVar)
       lift . modify $ \env -> env { varNum = varNum env + 1 }
       if exists then mkFreshVar else return fVar
+
+----------------------------------------------------------
+-- calc
+----------------------------------------------------------
+
+type Function r m = Args -> ProverT r m Node
+
+type FuncDatabase r m = Map (Name, Arity) (Function r m)
+
+calc :: Monad m => Node -> ProverT r m Node
+calc x =
+  case x of
+    PInt _   -> return x
+    PFloat _ -> return x
+    Func name rawArgs -> do
+      arithFuncs <- lift $ gets funcDatabase
+      case Map.lookup (name, length rawArgs) arithFuncs of
+        Nothing -> do
+          lit <- lift $ unparse x
+          fatalWith $ lit ++ " is not a function"
+        Just f -> do
+          args <- mapM calc rawArgs
+          f args
+    Var _ -> argsNotInstantiated
+    _ -> fatalWith "arithmetic term expected"
 
 ----------------------------------------------------------
 -- unparser

@@ -17,6 +17,7 @@ import           Prolog.Prover    (Environment(..), ProverT, liftDB, call, unpar
 import           Prolog.Tokenizer (tokenize)
 
 import           Prolog.Builtin.Predicate (builtinPredicates, ioPredicates)
+import           Prolog.Builtin.Function (builtinFuncs)
 
 import           Control.Applicative
 import           Control.Monad
@@ -37,6 +38,7 @@ initEnvironment = Environment {
     bindings = Map.empty
   , database = Map.empty
   , predDatabase = Map.union builtinPredicates ioPredicates
+  , funcDatabase = builtinFuncs
   , varNum = 0
   , opData = initOpData
   }

@@ -81,8 +81,7 @@ withMemo key parser = do
   memo <- lift . lift . gets $ Map.lookup key
   case memo of
     Nothing -> setMemo key parser
-    Just res -> setResult res
-  where setResult res = ParserT $ \_ -> return res
+    Just res -> ParserT $ \_ -> return res
   
 ----------------------------------------------------------
 -- syntactic parsers for Prolog

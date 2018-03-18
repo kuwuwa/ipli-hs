@@ -40,7 +40,7 @@ builtinPredicates = Map.fromList [
   , (("==",   2), eq)
   , (("\\==", 2), neq)
 
-  -- , (("is",   2), is)
+  , (("is",   2), is)
   , (("=<",   2), lte)
   , (("<",    2), lt)
   , ((">=",   2), gte)
@@ -183,7 +183,8 @@ neq [lhs, rhs] = do
 ------------------------------
 
 -- ("is", 2)
--- is :: Monad m => Predicate r m
+is :: Monad m => Predicate r m
+is [lhs, rhs] = calc rhs >>= unify lhs
 
 -- ("=<", 2)
 lte :: Monad m => Predicate r m
@@ -220,7 +221,7 @@ compareNum cmpSymbol cmp [lhs, rhs] = do
       (PInt lv,   PFloat rv) -> return $ fromInteger lv `cmp` rv
       (PFloat lv, PInt rv)   -> return $ lv             `cmp` fromInteger rv
       _ -> argsNotInstantiated
-  if res then return ()
+  if res then ok
   else do
     [lhsStr, rhsStr] <- lift $ mapM unparse [lhs, rhs]
     failWith $ "`" ++ lhsStr ++ " " ++ cmpSymbol ++ " " ++ rhsStr ++ "` does not hold"
@@ -242,7 +243,7 @@ once [goal] = call goal >> cut
 
 -- ("repeat", 0)
 repeat' :: Monad m => Predicate r m
-repeat' [] = return () <|> repeat' []
+repeat' [] = ok <|> repeat' []
 
 ------------------------------
 
@@ -257,7 +258,7 @@ atomConcat :: Monad m => Predicate r m
 atomConcat [a0, a1, a2] = do
   case (a0, a1, a2) of
     (Atom l0, Atom l1, _) -> unify (Atom $ l0 ++ l1) a2
-    (_, _, Atom l2)       -> foldr1 (<|>) $ map f (splitInTwo l2) 
+    (_, _,       Atom l2) -> foldr1 (<|>) $ map f (splitInTwo l2) 
     _                     -> fatalWith "[atomConcat] invalid arguments"
   where f (s0, s1) = unify a0 (Atom s0) >> unify a1 (Atom s1)
 

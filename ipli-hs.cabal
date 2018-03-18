@@ -21,6 +21,7 @@ library
                      , Lib.Result
                      , Lib.StringParser
                      , Prolog
+                     , Prolog.Builtin.Function
                      , Prolog.Builtin.Predicate
                      , Prolog.Database
                      , Prolog.Loader

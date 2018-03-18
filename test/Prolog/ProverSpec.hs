@@ -34,7 +34,7 @@ getBindings :: Monad m => ProverT r m Bindings
 getBindings = lift $ gets bindings
 
 attachBindings :: Monad m => a -> ProverT (a, Bindings) m (a, Bindings)
-attachBindings = \v -> do
+attachBindings v = do
   bd <- getBindings
   return (v, bd)
 

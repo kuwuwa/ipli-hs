@@ -10,10 +10,10 @@ module Prolog.Prover (
   , liftDB
   , liftPredDB
   , liftOpData
-  -- , bind
+  , bind
   , call
-  -- , fresh
-  -- , resolve
+  , fresh
+  , resolve
   , unify
   , unparse
   , assertAtom
@@ -320,7 +320,6 @@ assertNil node = case node of
   Nil    -> return node
   Var _  -> argsNotInstantiated
   _      -> typeMismatchFatal "nil" node
-
 
 assertFunc :: Monad m => Node -> ProverT r m Node
 assertFunc node = case node of

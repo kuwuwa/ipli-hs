@@ -32,7 +32,7 @@ emptyDatabase :: Database
 emptyDatabase = Map.empty
 
 getPredicates :: Monad m => Name -> Arity -> StateT Database m [(Args, Body)]
-getPredicates name arity  = do
+getPredicates name arity = do
   resultMaybe <- gets $ Map.lookup (name, arity)
   return $ case resultMaybe of
              Nothing -> []

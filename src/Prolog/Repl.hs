@@ -88,27 +88,24 @@ repl = (fst <$>) $ flip runStateT initEnvironment $ do
     execClause :: Node -> ProverT () IO ()
     execClause clause = lift $ do
       case clause of
-        Func "?-" [node] -> do
-          let shownVars = collectVars node
-          status <- runBacktrackT (call node >> ask shownVars) (return . Backtrack.OK)
+        _ -> do
+          let shownVars = collectVars clause
+          status <- runBacktrackT (call clause >> ask shownVars) (return . Backtrack.OK)
           lift . putStrLn $ case status of
             Backtrack.OK () -> "[IPLI] true"
             Backtrack.Fail msg -> "[IPLI] false"
             Backtrack.Fatal msg -> "[IPLI] error: " ++ msg
-        _ -> do
-          liftDB $ appendClause clause
-          lift $ putStrLn "[IPLI] registered"
         -- TODO: operator registration
 
     ask :: Set String -> ProverT () IO ()
     ask shown = do
       bs <- lift $ filter (flip Set.member shown . fst) <$> Map.assocs <$> gets bindings
       mapM_ printBinding bs
-      ok <- lift . lift $ do
+      yes <- lift . lift $ do
         putStr "[y/N]: " >> hFlush stdout
         yn <- getLine
         return $ map toLower yn `elem` ["y", "yes"]
-      if ok
+      if yes
       then return ()
       else failWith "there is not what you want"
         where

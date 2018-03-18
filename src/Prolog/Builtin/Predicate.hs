@@ -7,6 +7,7 @@ module Prolog.Builtin.Predicate (
 
 import           Prolog.Node
 import           Prolog.Prover
+import           Prolog.Database
 
 import           Lib.Backtrack
 
@@ -48,9 +49,9 @@ builtinPredicates = Map.fromList [
   , (("=:=",  2), eqNum)
   , (("=\\=", 2), neqNum)
 
-  {--
   , (("asserta", 1), asserta)
   , (("assertz", 1), assertz)
+  {--
   , (("retract", 1), retract)
   , (("abolish", 1), abolish)
   , (("findall", 3), findall)
@@ -225,6 +226,24 @@ compareNum cmpSymbol cmp [lhs, rhs] = do
   else do
     [lhsStr, rhsStr] <- lift $ mapM unparse [lhs, rhs]
     failWith $ "`" ++ lhsStr ++ " " ++ cmpSymbol ++ " " ++ rhsStr ++ "` does not hold"
+
+------------------------------
+
+asserta :: Monad m => Predicate r m
+asserta [term] = do
+  res <- lift . liftDB $ prependClause term
+  trace "foo" return ()
+  case res of
+    Left msg -> fatalWith msg
+    Right _ -> ok
+
+assertz :: Monad m => Predicate r m
+assertz [term] = do
+  res <- lift . liftDB $ appendClause term
+  trace "FOO" return ()
+  case res of
+    Left msg -> fatalWith msg
+    Right _ -> ok
 
 ------------------------------
 

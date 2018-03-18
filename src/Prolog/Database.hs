@@ -56,8 +56,13 @@ prependClause node = do
   case parseClause node of
     Left msg -> return $ Left msg
     Right (key, val) -> do
-      modify' (Map.adjust (val:) key)
+      modify' $ prepend key val
       return  $ Right (key, val)
+    where prepend :: Ord k => k -> v -> Map k [v] -> Map k [v]
+          prepend key val mp =
+            case Map.lookup key mp of
+              Nothing -> Map.insert key [val] mp
+              Just _  -> Map.adjust (val:) key mp
 
 ------------------------------------------------------------
 

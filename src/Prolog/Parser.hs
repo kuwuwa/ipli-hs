@@ -23,6 +23,7 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Set        as Set
 
 import           Lib.Parser (ParserT(..), runParserT, Result(..), failParse)
+import           Lib.Combinator
 
 import           Prolog.Token    (Token)
 import qualified Prolog.Token    as Tk
@@ -96,7 +97,7 @@ lowerPrecLimit = 0
 topLevel :: Monad m => PLParserT m Node
 topLevel = do
   e <- expr upperPrecLimit
-  period_
+  period
   return e
 
 expr :: Monad m => Prec -> PLParserT m Node
@@ -284,6 +285,3 @@ rbracket = exactToken Tk.RBracket
 
 period :: Monad m => PLParserT m Token
 period = exactToken Tk.Period
-
-period_ :: Monad m => PLParserT m ()
-period_ = period >> return ()

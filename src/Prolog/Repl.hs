@@ -90,8 +90,8 @@ repl = (fst <$>) $ flip runStateT initEnvironment $ do
         let shownVars = collectVars clause
         status <- runBacktrackT (call clause >> ask shownVars) (return . Backtrack.OK)
         lift . putStrLn $ case status of
-          Backtrack.OK () -> "[IPLI] true"
-          Backtrack.Fail msg -> "[IPLI] false"
+          Backtrack.OK ()     -> "[IPLI] true"
+          Backtrack.Fail _    -> "[IPLI] false"
           Backtrack.Fatal msg -> "[IPLI] error: " ++ msg
 
     ask :: Set String -> ProverT () IO ()

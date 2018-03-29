@@ -16,10 +16,13 @@ module Lib.StringParser (
   consume,
   ) where
 
-import           Control.Applicative
-import           Data.Char
-
 import           Lib.Parser
+import           Lib.Combinator
+
+import           Control.Monad
+import           Control.Applicative
+
+import           Data.Char
 
 type StrParser o = Parser StrState o
 
@@ -77,13 +80,13 @@ line = do
   x <- char
   if isNewLine x
     then return []
-    else fmap (x:) line
+    else (x:) <$> line
 
 exact :: Char -> StrParser Char
 exact c = filterP (== c) ("not " ++ [c]) char
 
 oneOfChars :: [Char] -> StrParser Char
-oneOfChars = foldl (<|>) failParser . map exact
+oneOfChars chars = foldr (<|>) (failParse $ "not any of " ++ chars) $ map exact chars
 
 upper :: StrParser Char
 upper = filterP isAsciiUpper "not one of A-Z" char
@@ -95,18 +98,16 @@ digit :: StrParser Char
 digit = filterP isDigit "not a digit" char
 
 space :: StrParser ()
-space = filterP (== ' ') "not a space" char >> return ()
+space = ignore $ filterP (== ' ') "not a space" char
 
 spaces :: StrParser ()
-spaces = many space >> return ()
+spaces = ignore (many space)
 
 filterP :: (a -> Bool) -> String -> StrParser a -> StrParser a
-filterP prd msg p = parser $ \st ->
-  let (res, st') = runParser p st in
-    case (res, fmap prd res) of
-      (Fail _, _)   -> (res, st)
-      (_, OK False) -> (Fail msg, st)
-      _             -> (res, st')
+filterP pred msg p = do
+  res <- p
+  guard (pred res) <|> failParse msg
+  return res
 
 consume :: StrParser a -> StrParser String
 consume p = parser $ \st ->

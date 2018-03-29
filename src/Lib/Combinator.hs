@@ -9,9 +9,15 @@ option p = ParserT $ \st -> do
     Fail _ -> return (OK Nothing, st)
     OK v   -> return (OK (Just v), st')
 
+ignore :: Monad m => ParserT s m a -> ParserT s m ()
+ignore p = p >> return ()
+
 except :: Monad m => ParserT s m a -> ParserT s m b -> ParserT s m b
 except p q = ParserT $ \st -> do
   (res, _) <- runParserT p st
   case res of 
     OK _ -> return (Fail "except", st)
     _    -> runParserT q st
+
+neg :: Monad m => ParserT s m a -> ParserT s m ()
+neg p = except p (return ())

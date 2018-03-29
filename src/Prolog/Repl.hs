@@ -1,5 +1,5 @@
 module Prolog.Repl (
-    repl
+  repl
   ) where
 
 import           Lib.Parser       (Result(..))
@@ -17,7 +17,7 @@ import           Prolog.Prover    (Environment(..), ProverT, liftDB, call, unpar
 import           Prolog.Tokenizer (tokenize)
 
 import           Prolog.Builtin.Predicate (builtinPredicates, ioPredicates)
-import           Prolog.Builtin.Function (builtinFuncs)
+import           Prolog.Builtin.Function  (builtinFuncs)
 
 import           Control.Applicative
 import           Control.Monad
@@ -87,15 +87,12 @@ repl = (fst <$>) $ flip runStateT initEnvironment $ do
 
     execClause :: Node -> ProverT () IO ()
     execClause clause = lift $ do
-      case clause of
-        _ -> do
-          let shownVars = collectVars clause
-          status <- runBacktrackT (call clause >> ask shownVars) (return . Backtrack.OK)
-          lift . putStrLn $ case status of
-            Backtrack.OK () -> "[IPLI] true"
-            Backtrack.Fail msg -> "[IPLI] false"
-            Backtrack.Fatal msg -> "[IPLI] error: " ++ msg
-        -- TODO: operator registration
+        let shownVars = collectVars clause
+        status <- runBacktrackT (call clause >> ask shownVars) (return . Backtrack.OK)
+        lift . putStrLn $ case status of
+          Backtrack.OK () -> "[IPLI] true"
+          Backtrack.Fail msg -> "[IPLI] false"
+          Backtrack.Fatal msg -> "[IPLI] error: " ++ msg
 
     ask :: Set String -> ProverT () IO ()
     ask shown = do

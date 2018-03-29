@@ -1,15 +1,15 @@
 module Prolog.Parser (
-    TokenStream(..)
-  , PLParserT
-  , PLParser
-  , runPLParserT
-  , runPLParser
-  , liftPLParserT
-  , topLevel
-  , expr
-  , anything
-  , lowerPrecLimit
-  , upperPrecLimit
+  TokenStream(..),
+  PLParserT,
+  PLParser,
+  runPLParserT,
+  runPLParser,
+  liftPLParserT,
+  topLevel,
+  expr,
+  anything,
+  lowerPrecLimit,
+  upperPrecLimit,
   ) where
 
 import           Control.Applicative

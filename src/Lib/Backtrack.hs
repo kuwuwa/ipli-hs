@@ -1,11 +1,11 @@
 module Lib.Backtrack (
-    BResult(..) 
-  , BacktrackT(..)
-  , failWith
-  , fatalWith
-  , ok
-  , cut
-  , defer
+  BResult(..),
+  BacktrackT(..),
+  failWith,
+  fatalWith,
+  ok,
+  cut,
+  defer,
   ) where
 
 import           Control.Applicative

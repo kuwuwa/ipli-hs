@@ -98,6 +98,7 @@ div'' [lhs, rhs] = floatBinaryOp (/) lhs rhs
 -- helpful functions
 ------------------------------
 
+{-# INLINE mixedBinaryOp #-}
 mixedBinaryOp :: Monad m => (forall a. Num a => a -> a -> a) -> Node -> Node -> ProverT r m Node
 mixedBinaryOp f lhs rhs = do
   assertNumber lhs >> assertNumber rhs
@@ -108,6 +109,7 @@ mixedBinaryOp f lhs rhs = do
     (PFloat l, PFloat r) -> return $ PFloat $ f l r
     _ -> argsNotInstantiated
 
+{-# INLINE intBinaryOp #-}
 intBinaryOp :: Monad m  => (Integer -> Integer -> Integer) -> Node -> Node -> ProverT r m Node
 intBinaryOp f lhs rhs = do
   assertPInt lhs >> assertPInt rhs
@@ -115,6 +117,7 @@ intBinaryOp f lhs rhs = do
     (PInt l, PInt r) -> return $ PInt $ f (fromIntegral l) (fromIntegral r)
     _ -> argsNotInstantiated
 
+{-# INLINE floatBinaryOp #-}
 floatBinaryOp :: Monad m => (Double -> Double -> Double) -> Node -> Node -> ProverT r m Node
 floatBinaryOp f lhs rhs = do
   assertPFloat lhs >> assertPFloat rhs

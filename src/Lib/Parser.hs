@@ -1,11 +1,11 @@
-module Lib.Parser
-  ( Result(..)
-  , ParserT(..)
-  , Parser
-  , runParser
-  , parser
-  , failParser
-  , failParse
+module Lib.Parser (
+  Result(..),
+  ParserT(..),
+  Parser,
+  runParser,
+  parser,
+  failParser,
+  failParse,
   ) where
 
 import           Lib.Result (Result(..))
@@ -15,7 +15,7 @@ import           Control.Monad
 import           Control.Monad.Trans.Class
 import           Data.Functor.Identity
 
-data ParserT s m o = ParserT { runParserT :: s -> m (Result o, s)  }
+data ParserT s m o = ParserT { runParserT :: s -> m (Result o, s) }
 
 type Parser s o = ParserT s Identity o
 
@@ -29,53 +29,54 @@ failParser :: (Monad m) => ParserT s m o
 failParser = ParserT $ \st -> return (Fail "failParser", st)
 
 instance Monad m => Functor (ParserT s m) where
+  {-# INLINE fmap #-}
   fmap f p = ParserT $ \st -> do
     res <- runParserT p st
     return $ case res of
                (OK o, st') -> (OK (f o), st')
                (Fail msg, _) -> (Fail msg, st)
-  {-# INLINE fmap #-}
 
 instance Monad m => Applicative (ParserT s m) where
-  pure x = ParserT $ \st -> return (OK x, st)
   {-# INLINE pure #-}
+  pure x = ParserT $ \st -> return (OK x, st)
+
+  {-# INLINE (<*>) #-}
   x <*> y = ParserT $ \st -> do
     (v, st') <- runParserT x st
     case v of
       Fail msg -> return (Fail msg, st)
       OK f -> runParserT (f <$> y) st'
-  {-# INLINE (<*>) #-}
 
 instance Monad m => Alternative (ParserT s m) where
   empty = failParser
 
+  {-# INLINE (<|>) #-}
   p <|> q = ParserT $ \st -> do
     (v, st') <- runParserT p st
     case v of
       Fail _ -> runParserT q st
       _      -> return (v, st')
-  {-# INLINE (<|>) #-}
 
+  {-# INLINE many #-}
   many p = ParserT $ \st -> do
     (v, st') <- runParserT p st
     case v of
       Fail _ -> return (OK [], st)
       OK w   -> runParserT ((w:) <$> many p) st'
-  {-# INLINE many #-}
 
-  some p = fmap (:) p <*> many p
   {-# INLINE some #-}
+  some p = (:) <$> p <*> many p
 
 instance Monad m => Monad (ParserT s m) where
-  return = pure
   {-# INLINE return #-}
+  return = pure
 
+  {-# INLINE (>>=) #-}
   x >>= f = ParserT $ \st -> do
     (y, st') <- runParserT x st
     case y of
       Fail msg -> return (Fail msg, st)
       OK v     -> runParserT (f v) st'
-  {-# INLINE (>>=) #-}
 
 instance Monad m => MonadPlus (ParserT s m) where
   mzero = empty

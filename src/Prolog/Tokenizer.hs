@@ -1,16 +1,16 @@
 module Prolog.Tokenizer (
-    tokenize
-  , token
-  , atom
-  , var
-  , num
-  , str
-  , lparen
-  , rparen
-  , lbracket
-  , rbracket
-  , period
-  , bar
+  tokenize,
+  token,
+  atom,
+  var,
+  num,
+  str,
+  lparen,
+  rparen,
+  lbracket,
+  rbracket,
+  period,
+  bar,
   ) where
 
 import           Control.Applicative
@@ -43,7 +43,7 @@ token = foldl1 (<|>) $ map (spaces >>) tokenRules
 func :: StrParser Token
 func = do
   Atom name _ <- atom
-  exact '('
+  exact '(' -- no space between atom and '('
   return $ Func name
 
 atom :: StrParser Token

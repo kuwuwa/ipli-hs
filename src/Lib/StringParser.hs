@@ -1,19 +1,19 @@
 module Lib.StringParser (
-    StrParser
-  , StrState(..)
-  , Pos(..)
-  , beginPos
-  , beginNum
-  , char
-  , line
-  , exact
-  , oneOfChars
-  , upper
-  , lower
-  , digit
-  , space
-  , spaces
-  , consume
+  StrParser,
+  StrState(..),
+  Pos(..),
+  beginPos,
+  beginNum,
+  char,
+  line,
+  exact,
+  oneOfChars,
+  upper,
+  lower,
+  digit,
+  space,
+  spaces,
+  consume,
   ) where
 
 import           Control.Applicative
@@ -78,7 +78,6 @@ line = do
   if isNewLine x
     then return []
     else fmap (x:) line
-
 
 exact :: Char -> StrParser Char
 exact c = filterP (== c) ("not " ++ [c]) char

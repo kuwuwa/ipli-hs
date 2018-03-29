@@ -1,13 +1,13 @@
 module Prolog.Operator (
-    OpType(..)
-  , Operator(..)
-  , OpState
-  , OpMap
-  , OpData(..)
-  , addOp
-  , opers
-  , readOpType
-  , initOpData
+  OpType(..),
+  Operator(..),
+  OpState,
+  OpMap,
+  OpData(..),
+  addOp,
+  opers,
+  readOpType,
+  initOpData,
   ) where
 
 import           Data.Set (Set)

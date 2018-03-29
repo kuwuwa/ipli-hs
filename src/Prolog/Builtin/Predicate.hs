@@ -1,8 +1,8 @@
 {-# LANGUAGE RankNTypes #-}
 
 module Prolog.Builtin.Predicate (
-    builtinPredicates
-  , ioPredicates
+  builtinPredicates,
+  ioPredicates,
   ) where
 
 import           Prolog.Node
@@ -55,6 +55,7 @@ builtinPredicates = Map.fromList [
 
   , (("asserta", 1), asserta)
   , (("assertz", 1), assertz)
+
   {--
   , (("retract", 1), retract)
   , (("abolish", 1), abolish)

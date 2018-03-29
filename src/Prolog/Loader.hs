@@ -1,36 +1,30 @@
 module Prolog.Loader (
-    loadFile
+  loadFile
   ) where
-
-
-import           Prolog.Database    (appendClause)
-import           Prolog.Parser (
-    TokenStream(..)
-  , PLParserT
-  , runPLParserT
-  , liftPLParserT
-  , topLevel
-  , anything
-  )
-import           Prolog.Prover (
-    Environment(..)
-  , liftDB
-  , liftOpData
-  , call
-  )
-import           Prolog.Node        (Node(..))
-import           Prolog.Token       (Token)
-import           Prolog.Tokenizer   (token)
-
-import           Control.Applicative
-import           Control.Monad.Trans.Class
-import           Control.Monad.Trans.State
 
 import           Lib.Combinator   (except)
 import           Lib.Parser       (Result(..), runParser, failParse)
 import           Lib.StringParser (StrState(..), beginPos)
 import           Lib.Backtrack    (runBacktrackT)
 import qualified Lib.Backtrack    as B
+
+import           Prolog.Database  (appendClause)
+import           Prolog.Parser (
+  TokenStream(..),
+  PLParserT,
+  runPLParserT,
+  liftPLParserT,
+  topLevel,
+  anything,
+  )
+import           Prolog.Prover    (Environment(..), liftDB, liftOpData, call)
+import           Prolog.Node      (Node(..))
+import           Prolog.Token     (Token)
+import           Prolog.Tokenizer (token)
+
+import           Control.Applicative
+import           Control.Monad.Trans.Class
+import           Control.Monad.Trans.State
 
 loadFile :: FilePath -> StateT (Environment () IO) IO ()
 loadFile path = do

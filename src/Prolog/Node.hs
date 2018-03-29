@@ -1,5 +1,5 @@
 module Prolog.Node (
-    Node(..)
+  Node(..)
   ) where
 
 data Node = Atom String

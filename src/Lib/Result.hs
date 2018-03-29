@@ -1,5 +1,5 @@
 module Lib.Result (
-    Result(..)
+  Result(..)
   ) where
 
 type Msg = String

@@ -1,34 +1,34 @@
 module Prolog.Prover (
-    Name
-  , Arity
-  , Args
-  , Bindings
-  , Predicate
-  , PredDatabase
-  , ProverT
-  , Environment(..)
-  , Function
-  , liftDB
-  , liftPredDB
-  , liftOpData
-  , bind
-  , call
-  , fresh
-  , resolve
-  , unify
-  , unparse
-  , calc
-  , assertAtom
-  , assertNumber
-  , assertPInt
-  , assertPFloat
-  , assertStr
-  , assertNil
-  , assertFunc
-  , assertCallable
-  , typeOf
-  , argsNotInstantiated
-  , typeMismatch
+  Name,
+  Arity,
+  Args,
+  Bindings,
+  Predicate,
+  PredDatabase,
+  ProverT,
+  Environment(..),
+  Function,
+  liftDB,
+  liftPredDB,
+  liftOpData,
+  bind,
+  call,
+  -- fresh,
+  resolve,
+  unify,
+  unparse,
+  calc,
+  assertAtom,
+  assertNumber,
+  assertPInt,
+  assertPFloat,
+  assertStr,
+  assertNil,
+  assertFunc,
+  assertCallable,
+  typeOf,
+  argsNotInstantiated,
+  typeMismatch,
   ) where
 
 import           Lib.Backtrack (BacktrackT(..), ok, failWith, fatalWith, defer)
@@ -78,8 +78,8 @@ type EnvT r m = StateT (Environment r m) m
 
 liftBindings :: Monad m => StateT Bindings m o -> EnvT r m o
 liftBindings m = StateT $ \env -> do
-  (x, bindings') <- runStateT m $ bindings env
-  return (x, env { bindings = bindings' })
+  (x, bd') <- runStateT m $ bindings env
+  return (x, env { bindings = bd' })
 
 liftDB :: Monad m => StateT Database m o -> EnvT r m o
 liftDB m = StateT $ \env -> do
@@ -328,7 +328,7 @@ assertNumber node = case node of
   PInt _   -> return node
   PFloat _ -> return node
   Var _    -> argsNotInstantiated
-  _      -> typeMismatchFatal "number" node
+  _        -> typeMismatchFatal "number" node
 
 assertPInt :: Monad m => Node -> ProverT r m Node
 assertPInt node = case node of

@@ -1,5 +1,5 @@
 module Prolog (
-    repl
+  repl
   ) where
 
 import Prolog.Repl

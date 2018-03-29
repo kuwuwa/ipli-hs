@@ -1,10 +1,10 @@
 module Prolog.Database (
-    Database
-  , Entry
-  , emptyDatabase
-  , getPredicates
-  , appendClause
-  , prependClause
+  Database,
+  Entry,
+  emptyDatabase,
+  getPredicates,
+  appendClause,
+  prependClause,
   ) where
 
 import           Control.Monad.Trans.State

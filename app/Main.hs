@@ -1,5 +1,6 @@
 module Main where
 
-import qualified Prolog
+import Prolog (repl)
 
-main = Prolog.repl
+main :: IO ()
+main = repl

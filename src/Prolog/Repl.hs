@@ -91,6 +91,7 @@ repl = (fst <$>) $ flip runStateT initEnvironment $ do
         status <- runBacktrackT (call clause >> ask shownVars) (return . Backtrack.OK)
         lift . putStrLn $ case status of
           Backtrack.OK ()     -> "[IPLI] true"
+          Backtrack.Cut       -> "[IPLI] false"
           Backtrack.Fail _    -> "[IPLI] false"
           Backtrack.Fatal msg -> "[IPLI] error: " ++ msg
 

@@ -14,16 +14,18 @@ import           Control.Monad.IO.Class
 
 type Msg = String
 
-data BResult a = Fatal Msg | Fail Msg | OK a
+data BResult a = Fatal Msg | Fail Msg | Cut | OK a
 
 instance Show a => Show (BResult a) where
   show (Fatal msg) = "BResult{Fatal: " ++ msg ++ "}"
+  show Cut         = "BResult{Cut}"
   show (Fail msg)  = "BResult{Fail: " ++ msg ++ "}"
   show (OK v)      = "BResult{OK: " ++ show v ++ "}"
 
 instance Eq a => Eq (BResult a) where
   Fatal a == Fatal b = a == b
   Fail a  == Fail b  = a == b
+  Cut     == Cut     = True
   OK a    == OK b    = a == b
   _       == _       = False
 
@@ -53,6 +55,7 @@ instance Monad m => Alternative (BacktrackT r m) where
     case v of
       OK _      -> return v
       Fail _    -> runBacktrackT y k
+      Cut       -> return Cut
       Fatal msg -> return $ Fatal msg
 
 instance Monad (BacktrackT r m) where
@@ -91,9 +94,9 @@ cut :: Monad m => BacktrackT r m ()
 cut = BacktrackT $ \k -> do
   res <- k ()
   return $ case res of
-    OK v      -> OK v
-    Fail msg  -> Fatal $ "[cut]" ++ msg
-    _         -> res
+    OK v   -> OK v
+    Fail _ -> Cut
+    _      -> res
 
 {-# INLINE defer #-}
 defer :: Monad m => BacktrackT r m b -> BacktrackT r m ()

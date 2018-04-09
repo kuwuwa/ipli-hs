@@ -23,6 +23,7 @@ testEnv = Environment {
     bindings     = Map.empty
   , database     = Map.empty
   , predDatabase = Map.empty
+  , funcDatabase = Map.empty
   , opData       = initOpData
   , varNum       = 0
 }

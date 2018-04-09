@@ -21,8 +21,6 @@ import qualified Data.Map as Map
 
 import           System.Exit (exitSuccess)
 
-import           Debug.Trace
-
 builtinPredicates :: Monad m => PredDatabase r m
 builtinPredicates = Map.fromList [
     (("true", 0), true)
@@ -53,6 +51,7 @@ builtinPredicates = Map.fromList [
   , (("=:=",  2), eqNum)
   , (("=\\=", 2), neqNum)
 
+  , (("assert", 1),  assertz)
   , (("asserta", 1), asserta)
   , (("assertz", 1), assertz)
 
@@ -65,6 +64,7 @@ builtinPredicates = Map.fromList [
   , (("op",         3), op)
   , (("current_op", 3), currentOp)
 
+  , (("!", 0), cut')
   , (("\\+",    1), neg)
   , (("once",   1), once)
   , (("repeat", 0), repeat')
@@ -84,7 +84,7 @@ builtinPredicates = Map.fromList [
 ioPredicates :: MonadIO m => PredDatabase r m
 ioPredicates = Map.fromList [
     (("write",  1), write)
-  , (("halt", 0), halt)
+  , (("halt",   0), halt)
   ]
 
 ------------------------------
@@ -99,7 +99,7 @@ fail' _ = failWith "fail"
 
 -- ("call", 1)
 callp :: Monad m => Predicate r m
-callp [term] = assertCallable term  >> call term
+callp [term] = call term
 
 -- (",", 2)
 andp :: Monad m => Predicate r m
@@ -178,13 +178,11 @@ compound [term] = do
 
 -- ("==", 2)
 eq :: Monad m => Predicate r m
-eq [lhs, rhs] = do
-  if lhs == rhs then ok else failWith "eq"
+eq [lhs, rhs] = if lhs == rhs then ok else failWith "eq"
 
 -- ("=/=", 2)
 neq :: Monad m => Predicate r m
-neq [lhs, rhs] = do
-  if lhs /= rhs then ok else failWith "neq"
+neq [lhs, rhs] = if lhs /= rhs then ok else failWith "neq"
 
 ------------------------------
 
@@ -226,7 +224,6 @@ compareNum cmpSymbol cmp [lhs, rhs] = do
       (PFloat lv, PFloat rv) -> return $ lv             `cmp` rv
       (PInt lv,   PFloat rv) -> return $ fromInteger lv `cmp` rv
       (PFloat lv, PInt rv)   -> return $ lv             `cmp` fromInteger rv
-      _ -> argsNotInstantiated
   if res then ok
   else do
     [lhsStr, rhsStr] <- lift $ mapM unparse [lhs, rhs]
@@ -237,18 +234,16 @@ compareNum cmpSymbol cmp [lhs, rhs] = do
 asserta :: Monad m => Predicate r m
 asserta [term] = do
   res <- lift . liftDB $ prependClause term
-  trace "foo" return ()
   case res of
     Left msg -> fatalWith msg
-    Right _ -> ok
+    Right _  -> ok
 
 assertz :: Monad m => Predicate r m
 assertz [term] = do
   res <- lift . liftDB $ appendClause term
-  trace "FOO" return ()
   case res of
     Left msg -> fatalWith msg
-    Right _ -> ok
+    Right _  -> ok
 
 ------------------------------
 
@@ -256,10 +251,10 @@ op :: Monad m => Predicate r m
 op [a, b, c] = do
   PInt prec  <- assertPInt a
   let precInt = fromInteger prec
-  Atom typ <- assertAtom b
+  Atom typ  <- assertAtom b
   Atom name <- assertAtom c
   case readOpType typ of
-    Nothing -> fatalWith "invalid operator specifier"
+    Nothing     -> fatalWith "invalid operator specifier"
     Just opType -> lift . liftOpData $ modify' (addOp $ Operator name precInt opType)
 
 currentOp :: Monad m => Predicate r m
@@ -272,12 +267,15 @@ currentOp [a, b, c] = do
   
 ------------------------------
 
+cut' :: Monad m => Predicate r m
+cut' [] = cut
+
 -- ("\\+", 1)
 neg :: Monad m => Predicate r m
 neg [term] = BacktrackT $ \k -> do
   res <- runBacktrackT (call term) k
   case res of
-    OK _   -> unparse term >>= return . Fail . (++ "was achieved")
+    OK _   -> unparse term >>= return . Fail . (++ " was achieved")
     Fail _ -> runBacktrackT ok k
     fatal  -> return fatal
 
@@ -302,13 +300,13 @@ atomConcat :: Monad m => Predicate r m
 atomConcat [a0, a1, a2] = do
   case (a0, a1, a2) of
     (Atom l0, Atom l1, _) -> unify (Atom $ l0 ++ l1) a2
-    (_, _,       Atom l2) -> foldr1 (<|>) $ map f (splitInTwo l2) 
-    _                     -> fatalWith "[atomConcat] invalid arguments"
+    (_, _,       Atom l2) -> foldr1 (<|>) $ map f (allSplit l2)
+    _                     -> fatalWith "[atom_concat] invalid arguments"
   where f (s0, s1) = unify a0 (Atom s0) >> unify a1 (Atom s1)
 
-splitInTwo :: String -> [(String, String)]
-splitInTwo [] = [("", "")]
-splitInTwo (x:xs) = ("", x:xs) : map (\(a, b) -> (x:a, b)) (splitInTwo xs)
+allSplit :: String -> [(String, String)]
+allSplit [] = [("", "")]
+allSplit (x:xs) = ("", x:xs) : map (\(a, b) -> (x:a, b)) (allSplit xs)
 
 -- ("sub_atom",     5)
 -- ("atom_chars",   2)

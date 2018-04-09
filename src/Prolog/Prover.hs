@@ -9,7 +9,6 @@ module Prolog.Prover (
   Environment(..),
   Function,
   liftDB,
-  liftPredDB,
   liftOpData,
   bind,
   call,
@@ -66,12 +65,12 @@ type PredDatabase r m = Map (Name, Arity) (Predicate r m)
 ------------------------------------------------------------
 
 data Environment r m = Environment {
-    bindings :: Bindings
-  , database :: Database
-  , funcDatabase :: FuncDatabase r m
-  , predDatabase :: Map (Name, Arity) (Predicate r m)
-  , varNum :: Int
-  , opData :: OpData
+  bindings :: Bindings,
+  database :: Database,
+  funcDatabase :: FuncDatabase r m,
+  predDatabase :: Map (Name, Arity) (Predicate r m),
+  varNum :: Int,
+  opData :: OpData
 }
 
 type EnvT r m = StateT (Environment r m) m
@@ -86,16 +85,6 @@ liftDB m = StateT $ \env -> do
   (x, db') <- runStateT m $ database env
   return (x, env { database = db' })
 
-liftFuncDB :: Monad m => StateT (FuncDatabase r m) m o -> EnvT r m o
-liftFuncDB m = StateT $ \env -> do
-  (x, db') <- runStateT m $ funcDatabase env
-  return (x, env { funcDatabase = db' })
-
-liftPredDB :: Monad m => StateT (PredDatabase r m) m o -> EnvT r m o
-liftPredDB m = StateT $ \env -> do
-  (x, db') <- runStateT m $ predDatabase env
-  return (x, env { predDatabase = db' })
-
 liftOpData :: Monad m => StateT OpData m o -> EnvT r m o
 liftOpData m = StateT $ \env -> do
   (x, opData') <- runStateT m $ opData env
@@ -109,7 +98,6 @@ liftBindingsP = lift . liftBindings
 
 call :: Monad m => Node -> ProverT r m ()
 call node = do
-  assertCallable node
   let (name, args) = case node of
         Atom n   -> (n, [])
         Func f a -> (f, a)
@@ -196,12 +184,12 @@ fresh (params, body) = do
 
     mkFreshParams = mapM $ \nd -> case nd of
       Var _ -> Var <$> mkFreshVar
-      _ -> return nd
+      _     -> return nd
           
     go bd = case bd of
       Var v -> do
-        w' <- gets $ Map.lookup v
-        case w' of
+        wMaybe <- gets $ Map.lookup v
+        case wMaybe of
           Just w -> return $ Var w
           Nothing -> do
             fVar <- lift mkFreshVar
@@ -236,9 +224,7 @@ calc x =
         Nothing -> do
           lit <- lift $ unparse x
           fatalWith $ lit ++ " is not a function"
-        Just f -> do
-          args <- mapM calc rawArgs
-          f args
+        Just f -> mapM calc rawArgs >>= f
     Var _ -> argsNotInstantiated
     _ -> fatalWith "arithmetic term expected"
 
@@ -273,7 +259,7 @@ unparse _func@(Func _ _) = unparseFunc upperPrecLimit _func
         _ -> unparseFuncDefault func
 
     unparseFunc prec func@(Func name [lhs, rhs]) = do
-      if isListLit func then unparseList func
+      if isPair func then unparseList func
       else do
         zfzOpMaybe <- liftOpData $ gets (Map.lookup name . zfzMap)
         case zfzOpMaybe of
@@ -291,11 +277,11 @@ unparse _func@(Func _ _) = unparseFunc upperPrecLimit _func
 
     unparseFuncDefault (Func name args) = do
       -- 1000 is the precedence of comma
-      argsStr <- mapM (unparseFunc $ pred 1000) args
+      argsStr <- mapM (unparseFunc $ pred 999) args
       return $ name ++ "(" ++ joinList ", " argsStr ++ ")"
 
-    isListLit (Func "[|]" [_,_]) = True
-    isListLit _ = False
+    isPair (Func "[|]" [_,_]) = True
+    isPair _ = False
 
     joinList _ [] = ""
     joinList delim (x:xs) = concat $ x : zipWith (++) (repeat delim) xs

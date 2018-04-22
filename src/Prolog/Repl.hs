@@ -107,9 +107,11 @@ repl = (fst <$>) $ flip runStateT initEnvironment $ do
       then return ()
       else failWith "there is not what you want"
         where
-          printBinding (key, val) = do
-            lift (unparse (Func "=" [Var key, val])) >>= lift . lift . putStrLn
+          printBinding (key, val) =
+            case val of
+              Var v | key == v -> return () -- too trivial to show
+              _                -> lift $ (unparse (Func "=" [Var key, val])) >>= lift . putStrLn
 
-    collectVars (Var v)       = Set.singleton v
-    collectVars (Func _ args) = foldr Set.union Set.empty $ map collectVars args
-    collectVars _             = Set.empty
+    collectVars (Var v) | v /= "_" = Set.singleton v
+    collectVars (Func _ args)      = foldr Set.union Set.empty $ map collectVars args
+    collectVars _                  = Set.empty

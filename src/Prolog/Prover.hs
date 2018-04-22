@@ -144,8 +144,8 @@ bind x y = do
   x' <- resolve x
   y' <- resolve y
   case (x', y') of
-    (Var xv, _) -> bind' xv y'
-    (_, Var yv) -> bind' yv x'
+    (Var xv,  _     ) -> if xv == "_" then ok else bind' xv y'
+    (_,       Var yv) -> if yv == "_" then ok else bind' yv x'
     _ -> failWith "can't bind two nonvars"
   where
     bind' v term =

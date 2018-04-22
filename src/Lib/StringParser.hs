@@ -98,7 +98,7 @@ digit :: StrParser Char
 digit = filterP isDigit "not a digit" char
 
 space :: StrParser ()
-space = ignore $ filterP (== ' ') "not a space" char
+space = ignore $ oneOfChars " \n"
 
 spaces :: StrParser ()
 spaces = ignore (many space)

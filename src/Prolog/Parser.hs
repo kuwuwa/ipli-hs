@@ -108,57 +108,59 @@ expr prec = do
     l0 <- lassoc
     yf l0 <|> return l0
   return result
-  where lookahead = ParserT $ \st -> do
-          (result, _) <- runParserT anything st
-          return $ case result of
-                     Fail _         -> (Fail $ "no more token", st)
-                     OK Tk.RParen   -> (Fail $ "unexpected `)'", st)
-                     OK Tk.RBracket -> (Fail $ "unexpected `]'", st)
-                     OK Tk.Bar      -> (Fail $ "unexpected bar", st)
-                     v              -> (v, st)
+  where
+    lookahead = ParserT $ \st -> do
+      (result, _) <- runParserT anything st
+      let result' = case result of
+                      Fail _         -> Fail "no more token"
+                      OK Tk.RParen   -> Fail "unexpected `)'"
+                      OK Tk.RBracket -> Fail "unexpected `]'"
+                      OK Tk.Bar      -> Fail "unexpected bar"
+                      _              -> result
+      return (result', st)
 
-        term = fx <|> fy <|> xfx <|> suffix (lowerExpr prec)
-          where fx = do
-                  Operator name _ _ <- oper Fx prec
-                  ter <- suffix $ lowerExpr prec
-                  return $ Func name [ter]
-                fy = do
-                  Operator name _ _ <- oper Fy prec
-                  ter <- term
-                  return $ Func name [ter]
+    term = fx <|> fy <|> xfx <|> suffix (lowerExpr prec)
+      where fx = do
+              Operator name _ _ <- oper Fx prec
+              ter <- suffix $ lowerExpr prec
+              return $ Func name [ter]
+            fy = do
+              Operator name _ _ <- oper Fy prec
+              ter <- term
+              return $ Func name [ter]
 
-        xfx = do
-          lhs <- lowerExpr prec
-          Operator name _ _ <- oper Xfx prec
-          rhs <- lowerExpr prec
-          return $ Func name [lhs, rhs]
+    xfx = do
+      lhs <- lowerExpr prec
+      Operator name _ _ <- oper Xfx prec
+      rhs <- lowerExpr prec
+      return $ Func name [lhs, rhs]
 
-        suffix parser = parser >>= loop
-          where loop ter = xf ter <|> yf ter <|> return ter
+    suffix p = p >>= loop
+      where loop ter = xf ter <|> yf ter <|> return ter
 
-        xf ter = do
-          Operator name _ _ <- oper Xf prec
-          return $ Func name [ter]
+    xf ter = do
+      Operator name _ _ <- oper Xf prec
+      return $ Func name [ter]
 
-        yf ter = do
-          Operator name _ _ <- oper Yf prec
-          let ter' = Func name [ter]
-          yf ter' <|> return ter'
+    yf ter = do
+      Operator name _ _ <- oper Yf prec
+      let ter' = Func name [ter]
+      yf ter' <|> return ter'
 
-        rassoc = loop <|> term
-          where loop = do
-                  lhs <- lowerExpr prec
-                  Operator name _ _ <- oper Xfy prec
-                  rhs <- rassoc
-                  return $ Func name [lhs, rhs]
+    rassoc = loop <|> term
+      where loop = do
+              lhs <- lowerExpr prec
+              Operator name _ _ <- oper Xfy prec
+              rhs <- rassoc
+              return $ Func name [lhs, rhs]
 
-        lassoc = do
-          lhs <- rassoc
-          loop lhs
-          where loop ter = (do
-                  Operator name _ _ <- oper Yfx prec
-                  rhs <- lowerExpr prec
-                  loop $ Func name [ter, rhs]) <|> return ter
+    lassoc = do
+      lhs <- rassoc
+      loop lhs
+      where loop ter = (do
+              Operator name _ _ <- oper Yfx prec
+              rhs <- lowerExpr prec
+              loop $ Func name [ter, rhs]) <|> return ter
 
 expr0 :: Monad m => PLParserT m Node
 expr0 = do

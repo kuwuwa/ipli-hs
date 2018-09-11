@@ -12,8 +12,8 @@ import           Control.Monad
 import           Control.Monad.Trans.Class (lift)
 
 import qualified Data.Bits as Bits
-import qualified Data.Map as Map
-import           Data.Map (Map)
+import qualified Data.Map.Strict as Map
+import           Data.Map.Strict (Map)
 
 
 builtinFuncs :: Monad m => Map (Name, Arity) (Function r m)

@@ -8,7 +8,7 @@ import           Control.Monad.Trans.Class
 import           Control.Monad.Trans.State
 import           Control.Monad.IO.Class
 
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as Map
 
 import           Prolog.Node     (Node)
 import qualified Prolog.Node     as Node

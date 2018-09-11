@@ -9,7 +9,7 @@ module Prolog.Database (
 
 import           Control.Monad.Trans.State
 
-import           Data.Map (Map)
+import           Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 
 import           Prolog.Node (Node(..))

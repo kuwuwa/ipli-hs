@@ -35,8 +35,8 @@ import           Control.Monad
 import           Control.Monad.Trans.Class (lift)
 import           Control.Monad.Trans.State (StateT(..), evalStateT, gets, modify)
 
-import           Data.Map (Map)
-import qualified Data.Map as Map
+import           Data.Map.Strict (Map)
+import qualified Data.Map.Strict as Map
 
 import           Lib.Backtrack (BacktrackT, ok)
 import qualified Lib.Backtrack as Backtrack

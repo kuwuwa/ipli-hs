@@ -2,42 +2,37 @@ module Prolog.Loader (
   loadFile
   ) where
 
-import           Lib.Combinator   (except)
-import           Lib.Parser       (Result(..), runParser, failParse)
-import           Lib.StringParser (StrState(..), beginPos)
-import           Lib.Backtrack    (runBacktrackT)
-import qualified Lib.Backtrack    as B
-
-import           Prolog.Database  (appendClause)
-import           Prolog.Parser (
-  TokenStream(..),
-  PLParserT,
-  runPLParserT,
-  liftPLParserT,
-  topLevel,
-  anything,
-  )
-import           Prolog.Prover    (Environment(..), liftDB, liftOpData, call)
-import           Prolog.Node      (Node(..))
-import           Prolog.Token     (Token)
-import           Prolog.Tokenizer (token)
-
 import           Control.Applicative
 import           Control.Monad.Trans.Class
 import           Control.Monad.Trans.State
 
-import Debug.Trace
+import qualified Lib.Combinator   as Combinator
+import           Lib.Parser       (Result(..), runParser, failParse)
+import           Lib.StringParser (StrState(..), beginPos)
+import           Lib.Backtrack    (runBacktrackT)
+import qualified Lib.Backtrack    as Backtrack
 
-loadFile :: FilePath -> StateT (Environment () IO) IO ()
+import qualified Prolog.Database  as Database
+import qualified Prolog.Parser    as Parser
+import qualified Prolog.Prover    as Prover
+import qualified Prolog.Node      as Node
+import           Prolog.Token     (Token)
+import qualified Prolog.Tokenizer as Tokenizer
+
+
+type PLParserWithEnv m r = Parser.PLParserT (StateT (Prover.Environment r m) m) r
+
+
+loadFile :: FilePath -> StateT (Prover.Environment () IO) IO ()
 loadFile path = do
   content <- lift $ readFile path
   case beginTokenize content of
     Fail msg -> lift $ putStrLn msg
     OK tokens -> do
-      opD <- gets opData
-      let beginStream = TokenStream 0 tokens
-      (status, restTokens, opD') <- runPLParserT loadAll beginStream opD
-      liftOpData $ put opD'
+      opD <- gets Prover.opData
+      let beginStream = Parser.TokenStream 0 tokens
+      (status, restTokens, opD') <- Parser.runPLParserT loadAll beginStream opD
+      Prover.liftOpData $ put opD'
       case status of
         OK () -> lift $ putStrLn ("OK: " ++ path)
         Fail msg -> lift $ do
@@ -45,10 +40,10 @@ loadFile path = do
           putStrLn $ show restTokens
           putStrLn msg
     
-loadAll :: Monad m => PLParserT (StateT (Environment () m) m) ()
+loadAll :: Monad m => PLParserWithEnv m ()
 loadAll = do
   many loadClause
-  except anything (return ()) <|> failParse "parse failed"
+  Combinator.except Parser.anything (return ()) <|> failParse "parse failed"
 
 ------------------------------------------------------------
 -- handy functions
@@ -56,16 +51,16 @@ loadAll = do
 
 beginTokenize :: String -> Result [Token]
 beginTokenize code =
-  let (result, StrState rest pos) = runParser (many token) (StrState code beginPos) in
+  let (result, StrState rest pos) = runParser (many Tokenizer.token) (StrState code beginPos) in
     if rest == ""
       then result
       else Fail $ "tokenization failed at " ++ show pos ++ ": " ++ rest
 
-loadClause :: Monad m => PLParserT (StateT (Environment () m) m) ()
+loadClause :: Monad m => PLParserWithEnv m ()
 loadClause = do
-  clause <- topLevel
+  clause <- Parser.topLevel
   case clause of
-    Func ":-"  [node] -> do
-      liftPLParserT $ runBacktrackT (call node) (return . B.OK)
+    Node.Func ":-"  [node] -> do
+      Parser.liftPLParserT $ runBacktrackT (Prover.call node) (return . Backtrack.OK)
       return ()
-    _ -> liftPLParserT . liftDB $ appendClause clause >> return ()
+    _ -> Parser.liftPLParserT . Prover.liftDB $ Database.appendClause clause >> return ()

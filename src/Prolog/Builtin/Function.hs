@@ -4,14 +4,14 @@ module Prolog.Builtin.Function (
 
 import           Lib.Backtrack
 
-import           Prolog.Node
-import           Prolog.Prover
+import           Prolog.Node   (Node(PInt, PFloat))
+import           Prolog.Prover (ProverT(..), Function, Name, Arity)
+import qualified Prolog.Prover as Prover
 
 import           Control.Monad
 import           Control.Monad.Trans.Class (lift)
 
-import           Data.Bits
-
+import qualified Data.Bits as Bits
 import qualified Data.Map as Map
 import           Data.Map (Map)
 
@@ -36,27 +36,27 @@ builtinFuncs = Map.fromList [
   ]
 
 plus :: Monad m => Function r m
-plus [x] = assertNumber x >>= return
+plus [x] = Prover.assertNumber x >>= return
 
 neg :: Monad m => Function r m
 neg [x] = do
-  assertNumber x
+  Prover.assertNumber x
   case x of
     PInt v   -> return $ PInt (-v)
     PFloat v -> return $ PFloat (-v)
 
 bnot :: Monad m => Function r m
 bnot [x] = do
-  PInt v <- assertPInt x
-  return $ PInt (complement v)
+  PInt v <- Prover.assertPInt x
+  return $ PInt (Bits.complement v)
 
 lshift :: Monad m => Function r m
 lshift [lhs, rhs] = intBinaryOp f lhs rhs
-  where f a b = fromInteger a `shift` fromInteger b
+  where f a b = fromInteger a `Bits.shift` fromInteger b
 
 rshift :: Monad m => Function r m
 rshift [lhs, rhs] = intBinaryOp f lhs rhs
-  where f a b = fromInteger a `shiftR` fromInteger b
+  where f a b = fromInteger a `Bits.shiftR` fromInteger b
 
 pow :: Monad m => Function r m
 pow [lhs, rhs] = mixedBinaryOp (^) (**) lhs rhs
@@ -81,7 +81,7 @@ mul [lhs, rhs] = mixedBinaryOp (*) (*) lhs rhs
 
 div'' :: Monad m => Function r m
 div'' [lhs, rhs] = do
-  assertNumber lhs >> assertNumber rhs
+  Prover.assertNumber lhs >> Prover.assertNumber rhs
   case (lhs, rhs) of
     (PInt l, PInt r)
       | mod l r == 0 -> return (PInt $ l `div` r)
@@ -98,7 +98,7 @@ div'' [lhs, rhs] = do
 mixedBinaryOp :: Monad m => (Integer -> Integer -> Integer) -> (Double -> Double -> Double) ->
   Node -> Node -> ProverT r m Node
 mixedBinaryOp fInt fFloat lhs rhs = do
-  assertNumber lhs >> assertNumber rhs
+  Prover.assertNumber lhs >> Prover.assertNumber rhs
   case (lhs, rhs) of
     (PInt l,   PInt r)   -> return $ PInt $ fInt l r
     (PInt l,   PFloat r) -> return $ PFloat $ fFloat (fromInteger l) r
@@ -108,6 +108,6 @@ mixedBinaryOp fInt fFloat lhs rhs = do
 {-# INLINE intBinaryOp #-}
 intBinaryOp :: Monad m  => (Integer -> Integer -> Integer) -> Node -> Node -> ProverT r m Node
 intBinaryOp f lhs rhs = do
-  PInt l <- assertPInt lhs
-  PInt r <- assertPInt rhs
+  PInt l <- Prover.assertPInt lhs
+  PInt r <- Prover.assertPInt rhs
   return (PInt $ f (fromIntegral l) (fromIntegral r))

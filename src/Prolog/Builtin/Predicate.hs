@@ -3,13 +3,6 @@ module Prolog.Builtin.Predicate (
   ioPredicates,
   ) where
 
-import           Prolog.Node
-import           Prolog.Prover
-import           Prolog.Database
-import           Prolog.Operator (Operator(..), addOp, opers, readOpType)
-
-import           Lib.Backtrack
-
 import           Control.Applicative
 import           Control.Monad.Trans.Class
 import           Control.Monad.Trans.State
@@ -17,11 +10,23 @@ import           Control.Monad.IO.Class
 
 import qualified Data.Map as Map
 
+import           Prolog.Node     (Node)
+import qualified Prolog.Node     as Node
+import           Prolog.Prover   (Predicate, unify, call)
+import qualified Prolog.Prover   as Prover
+import           Prolog.Database (Database)
+import qualified Prolog.Database as Database
+import           Prolog.Operator (Operator(Operator))
+import qualified Prolog.Operator as Operator
+
+import           Lib.Backtrack (BacktrackT(..), ok)
+import qualified Lib.Backtrack as Backtrack
+
 import           System.Exit (exitSuccess)
 
 ------------------------------------------------------------
 
-builtinPredicates :: Monad m => PredDatabase r m
+builtinPredicates :: Monad m => Prover.PredDatabase r m
 builtinPredicates = Map.fromList [
     (("true", 0), true)
   , (("fail", 0), fail')
@@ -81,7 +86,7 @@ builtinPredicates = Map.fromList [
   --}
   ]
 
-ioPredicates :: MonadIO m => PredDatabase r m
+ioPredicates :: MonadIO m => Prover.PredDatabase r m
 ioPredicates = Map.fromList [
     (("write",  1), write)
   , (("halt",   0), halt)
@@ -95,7 +100,7 @@ true _ = ok
 
 -- ("fail", 0)
 fail' :: Monad m => Predicate r m
-fail' _ = failWith "fail"
+fail' _ = Backtrack.failWith "fail"
 
 -- ("call", 1)
 callp :: Monad m => Predicate r m
@@ -116,79 +121,79 @@ unify' [lhs, rhs] = unify lhs rhs
 -- ("\=", 2)
 failIfUnified :: Monad m => Predicate r m
 failIfUnified [lhs, rhs] = BacktrackT $ \k -> do
-  let p = (unify lhs rhs >> fatalWith "neq") <|> ok
+  let p = (unify lhs rhs >> Backtrack.fatalWith "neq") <|> ok
   res <- runBacktrackT p k
   return $ case res of
-    Fatal "neq" -> Fail $ show lhs ++ " and " ++ show rhs ++ " can be unified"
+    Backtrack.Fatal "neq" -> Backtrack.Fail $ show lhs ++ " and " ++ show rhs ++ " can be unified"
     _           -> res
 
 -- ("var", 1)
 var :: Monad m => Predicate r m
 var [term] = do
   case term of
-    Var _ -> ok
-    _     -> typeMismatch "variable" term
+    Node.Var _ -> ok
+    _     -> Prover.typeMismatch "variable" term
 
 -- ("nonvar", 1)
 nonvar :: Monad m => Predicate r m
 nonvar args = BacktrackT $ \k -> do
-  let p = (var args >> fatalWith "unexpected var") <|> ok
+  let p = (var args >> Backtrack.fatalWith "unexpected var") <|> ok
   res <- runBacktrackT p k
   return $ case res of
-    Fatal msg -> Fail msg
+    Backtrack.Fatal msg -> Backtrack.Fail msg
     _         -> res
 
 -- ("atom", 1)
 atom :: Monad m => Predicate r m
 atom [term] = do
   case term of
-    Atom _ -> ok
-    _      -> typeMismatch "atom" term
+    Node.Atom _ -> ok
+    _      -> Prover.typeMismatch "atom" term
 
 -- ("number", 1)
 number :: Monad m => Predicate r m
 number [term] = do
   case term of
-    PInt _   -> ok
-    PFloat _ -> ok
-    _        -> typeMismatch "number" term
+    Node.PInt _   -> ok
+    Node.PFloat _ -> ok
+    _        -> Prover.typeMismatch "number" term
 
 -- ("integer", 1)
 integer :: Monad m => Predicate r m
 integer [term] = do
   case term of
-    PInt _ -> ok
-    _      -> typeMismatch "integer" term
+    Node.PInt _ -> ok
+    _      -> Prover.typeMismatch "integer" term
 
 -- ("float", 1)
 float :: Monad m => Predicate r m
 float [term] = do
   case term of
-    PFloat _ -> ok
-    _        -> typeMismatch "float" term
+    Node.PFloat _ -> ok
+    _        -> Prover.typeMismatch "float" term
 
 -- ("compound", 1)
 compound :: Monad m => Predicate r m
 compound [term] = do
   case term of
-    Func _ _ -> ok
-    _        -> typeMismatch "compound" term
+    Node.Func _ _ -> ok
+    _        -> Prover.typeMismatch "compound" term
 
 ------------------------------
 
 -- ("==", 2)
 eq :: Monad m => Predicate r m
-eq [lhs, rhs] = if lhs == rhs then ok else failWith "eq"
+eq [lhs, rhs] = if lhs == rhs then ok else Backtrack.failWith "eq"
 
 -- ("=/=", 2)
 neq :: Monad m => Predicate r m
-neq [lhs, rhs] = if lhs /= rhs then ok else failWith "neq"
+neq [lhs, rhs] = if lhs /= rhs then ok else Backtrack.failWith "neq"
 
 ------------------------------
 
 -- ("is", 2)
 is :: Monad m => Predicate r m
-is [lhs, rhs] = calc rhs >>= unify lhs
+is [lhs, rhs] = Prover.calc rhs >>= unify lhs
 
 -- ("=<", 2)
 lte :: Monad m => Predicate r m
@@ -217,71 +222,71 @@ neqNum = compareNum "=\\=" (/=)
 {-# INLINE compareNum #-}
 compareNum :: Monad m => String -> (forall a. Ord a => a -> a -> Bool) -> Predicate r m
 compareNum cmpSymbol cmp [lhs, rhs] = do
-  assertNumber lhs >> assertNumber rhs
+  Prover.assertNumber lhs >> Prover.assertNumber rhs
   res <- do
     case (lhs, rhs) of
-      (PInt lv,   PInt rv)   -> return $ lv             `cmp` rv
-      (PFloat lv, PFloat rv) -> return $ lv             `cmp` rv
-      (PInt lv,   PFloat rv) -> return $ fromInteger lv `cmp` rv
-      (PFloat lv, PInt rv)   -> return $ lv             `cmp` fromInteger rv
+      (Node.PInt lv,   Node.PInt rv)   -> return $ lv             `cmp` rv
+      (Node.PFloat lv, Node.PFloat rv) -> return $ lv             `cmp` rv
+      (Node.PInt lv,   Node.PFloat rv) -> return $ fromInteger lv `cmp` rv
+      (Node.PFloat lv, Node.PInt rv)   -> return $ lv             `cmp` fromInteger rv
   if res then ok
   else do
-    [lhsStr, rhsStr] <- lift $ mapM unparse [lhs, rhs]
-    failWith $ "`" ++ lhsStr ++ " " ++ cmpSymbol ++ " " ++ rhsStr ++ "` does not hold"
+    [lhsStr, rhsStr] <- lift $ mapM Prover.unparse [lhs, rhs]
+    Backtrack.failWith $ "`" ++ lhsStr ++ " " ++ cmpSymbol ++ " " ++ rhsStr ++ "` does not hold"
 
 ------------------------------
 
 asserta :: Monad m => Predicate r m
 asserta [term] = do
-  res <- lift . liftDB $ prependClause term
+  res <- lift . Prover.liftDB $ Database.prependClause term
   case res of
-    Left msg -> fatalWith msg
+    Left msg -> Backtrack.fatalWith msg
     Right _  -> ok
 
 assertz :: Monad m => Predicate r m
 assertz [term] = do
-  res <- lift . liftDB $ appendClause term
+  res <- lift . Prover.liftDB $ Database.appendClause term
   case res of
-    Left msg -> fatalWith msg
+    Left msg -> Backtrack.fatalWith msg
     Right _  -> ok
 
 ------------------------------
 
 op :: Monad m => Predicate r m
 op [a, b, c] = do
-  PInt prec  <- assertPInt a
+  Node.PInt prec  <- Prover.assertPInt a
   let precInt = fromInteger prec
-  Atom typ  <- assertAtom b
-  Atom name <- assertAtom c
-  case readOpType typ of
-    Nothing     -> fatalWith "invalid operator specifier"
-    Just opType -> lift . liftOpData $ modify' (addOp $ Operator name precInt opType)
+  Node.Atom typ  <- Prover.assertAtom b
+  Node.Atom name <- Prover.assertAtom c
+  case Operator.readOpType typ of
+    Nothing     -> Backtrack.fatalWith "invalid operator specifier"
+    Just opType -> lift . Prover.liftOpData $ modify' (Operator.addOp $ Operator name precInt opType)
 
 currentOp :: Monad m => Predicate r m
 currentOp [a, b, c] = do
-  opers <- map fmt <$> (lift . liftOpData $ gets opers)
-  foldr1 (<|>) $ map u opers
+  ops <- map fmt <$> (lift . Prover.liftOpData $ gets Operator.opers)
+  foldr1 (<|>) $ map u ops
   where fmt (Operator name prec opType) =
-          (Atom name, PInt (fromIntegral prec), Atom (show opType))
+          (Node.Atom name, Node.PInt (fromIntegral prec), Node.Atom (show opType))
         u (name, prec, opType) = unify a prec >> unify b opType >> unify c name
   
 ------------------------------
 
 cut' :: Monad m => Predicate r m
-cut' [] = cut
+cut' [] = Backtrack.cut
 
 -- ("\\+", 1)
 neg :: Monad m => Predicate r m
 neg [term] = BacktrackT $ \k -> do
   res <- runBacktrackT (call term) k
   case res of
-    OK _   -> unparse term >>= return . Fail . (++ " was achieved")
-    Fail _ -> runBacktrackT ok k
-    fatal  -> return fatal
+    Backtrack.OK _   -> Prover.unparse term >>= return . Backtrack.Fail . (++ " was achieved")
+    Backtrack.Fail _ -> runBacktrackT ok k
+    fatal            -> return fatal
 
 -- ("once", 1)
 once :: Monad m => Predicate r m
-once [goal] = call goal >> cut
+once [goal] = call goal >> Backtrack.cut
 
 -- ("repeat", 0)
 repeat' :: Monad m => Predicate r m
@@ -292,17 +297,17 @@ repeat' [] = ok <|> repeat' []
 -- ("atom_length",  2)
 atomLength :: Monad m => Predicate r m
 atomLength [a0, a1] = do
-  Atom a <- assertAtom a0
-  unify a1 (PInt $ fromIntegral (length a))
+  Node.Atom a <- Prover.assertAtom a0
+  unify a1 (Node.PInt $ fromIntegral (length a))
 
 -- ("atom_concat",  3)
 atomConcat :: Monad m => Predicate r m
 atomConcat [a0, a1, a2] = do
   case (a0, a1, a2) of
-    (Atom l0, Atom l1, _) -> unify (Atom $ l0 ++ l1) a2
-    (_, _,       Atom l2) -> foldr1 (<|>) $ map f (allSplit l2)
-    _                     -> fatalWith "[atom_concat] invalid arguments"
-  where f (s0, s1) = unify a0 (Atom s0) >> unify a1 (Atom s1)
+    (Node.Atom l0, Node.Atom l1, _) -> unify (Node.Atom $ l0 ++ l1) a2
+    (_, _, Node.Atom l2) -> foldr1 (<|>) $ map f (allSplit l2)
+    _                     -> Backtrack.fatalWith "[atom_concat] invalid arguments"
+  where f (s0, s1) = unify a0 (Node.Atom s0) >> unify a1 (Node.Atom s1)
 
 allSplit :: String -> [(String, String)]
 allSplit [] = [("", "")]
@@ -322,7 +327,7 @@ allSplit (x:xs) = ("", x:xs) : map (\(a, b) -> (x:a, b)) (allSplit xs)
 
 -- ("write", 1)
 write :: MonadIO m => Predicate r m
-write [term] = return term >>= lift . unparse >>= liftIO . putStrLn
+write [term] = return term >>= lift . Prover.unparse >>= liftIO . putStrLn
 
 -- ("halt", 0)
 halt :: MonadIO m => Predicate r m

@@ -1,5 +1,5 @@
 module Lib.Backtrack (
-  BResult(..),
+  Result(..),
   BacktrackT(..),
   failWith,
   fatalWith,
@@ -14,15 +14,15 @@ import           Control.Monad.IO.Class
 
 type Msg = String
 
-data BResult a = Fatal Msg | Fail Msg | Cut | OK a
+data Result a = Fatal Msg | Fail Msg | Cut | OK a
 
-instance Show a => Show (BResult a) where
-  show (Fatal msg) = "BResult{Fatal: " ++ msg ++ "}"
-  show Cut         = "BResult{Cut}"
-  show (Fail msg)  = "BResult{Fail: " ++ msg ++ "}"
-  show (OK v)      = "BResult{OK: " ++ show v ++ "}"
+instance Show a => Show (Result a) where
+  show (Fatal msg) = "Result{Fatal: " ++ msg ++ "}"
+  show Cut         = "Result{Cut}"
+  show (Fail msg)  = "Result{Fail: " ++ msg ++ "}"
+  show (OK v)      = "Result{OK: " ++ show v ++ "}"
 
-instance Eq a => Eq (BResult a) where
+instance Eq a => Eq (Result a) where
   Fatal a == Fatal b = a == b
   Fail a  == Fail b  = a == b
   Cut     == Cut     = True
@@ -32,7 +32,7 @@ instance Eq a => Eq (BResult a) where
 ------------------------------------------------------------
 
 newtype BacktrackT r m a = BacktrackT {
-  runBacktrackT :: (a -> m (BResult r)) -> m (BResult r)
+  runBacktrackT :: (a -> m (Result r)) -> m (Result r)
 }
 
 instance Functor (BacktrackT r m) where

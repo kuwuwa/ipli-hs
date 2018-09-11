@@ -30,24 +30,21 @@ module Prolog.Prover (
   typeMismatch,
   ) where
 
-import           Lib.Backtrack (BacktrackT(..), ok, failWith, fatalWith, defer)
-
-import           Prolog.Database (Database)
-import           Prolog.Node     (Node(..))
-import           Prolog.Operator (Operator(..), OpData, OpType(..), fzMap, zfMap, zfzMap)
-import           Prolog.Parser   (upperPrecLimit)
-
 import           Control.Applicative ((<|>))
 import           Control.Monad
 import           Control.Monad.Trans.Class (lift)
 import           Control.Monad.Trans.State (StateT(..), evalStateT, gets, modify)
 
-import           Data.Maybe (fromJust, isJust)
-
 import           Data.Map (Map)
 import qualified Data.Map as Map
 
-import Debug.Trace
+import           Lib.Backtrack (BacktrackT, ok)
+import qualified Lib.Backtrack as Backtrack
+
+import           Prolog.Database (Database)
+import           Prolog.Node     (Node(Atom, Var, PInt, PFloat, Str, Nil, Func))
+import           Prolog.Operator (Operator(..), OpData, OpType(..), fzMap, zfMap, zfzMap)
+import qualified Prolog.Parser   as Parser
 
 ------------------------------------------------------------
 
@@ -110,14 +107,14 @@ call node = do
   case (procMaybe, entriesMaybe) of
     (Just proc,    _) -> proc =<< mapM resolve args
     (_, Just entries) -> foldr (<|>) failNoAnswer $ map (exec args) entries
-    _                 -> fatalWith $ "Undefined procedure: " ++ name ++ "/" ++ show (length args)
+    _                 -> Backtrack.fatalWith $ "Undefined procedure: " ++ name ++ "/" ++ show (length args)
   where
     exec args p = do
       (fParams, fBody) <- fresh p
       zipWithM_ unify args fParams
       call fBody
 
-    failNoAnswer = failWith "no more answer"
+    failNoAnswer = Backtrack.failWith "no more answer"
 
 
 resolve :: Monad m => Node -> ProverT r m Node
@@ -142,13 +139,13 @@ bind x y = do
   case (x', y') of
     (Var xv,  _     ) -> if xv == "_" then ok else bind' xv y'
     (_,       Var yv) -> if yv == "_" then ok else bind' yv x'
-    _                 -> failWith "can't bind two nonvars"
+    _                 -> Backtrack.failWith "can't bind two nonvars"
   where
     bind' v term =
       if v == "_" then ok else do
-      defer $ liftBindingsP (modify $ Map.delete v)
+      Backtrack.defer $ liftBindingsP (modify $ Map.delete v)
       case term of
-        Var w -> defer $ liftBindingsP (modify $ Map.delete w)
+        Var w -> Backtrack.defer $ liftBindingsP (modify $ Map.delete w)
         _     -> ok
       liftBindingsP $ modify (Map.insert v term)
 
@@ -159,13 +156,13 @@ unify x y = do
   y' <- resolve y
   case (x', y') of
     (Func p0 a0, Func p1 a1) -> do
-      when (p0 /= p1) $ failWith ("can't unify " ++ show x' ++ " and " ++ show y')
+      when (p0 /= p1) $ Backtrack.failWith ("can't unify " ++ show x' ++ " and " ++ show y')
       zipWithM_ unify a0 a1
     (Var _, _) -> bind x' y'
     (_, Var _) -> bind x' y'
     _
       | x' == y'  -> ok
-      | otherwise -> failWith $ "can't unify " ++ show x' ++ " and " ++ show y'
+      | otherwise -> Backtrack.failWith $ "can't unify " ++ show x' ++ " and " ++ show y'
 
 
 fresh :: Monad m => ([Node], Node) -> ProverT r m ([Node], Node)
@@ -214,10 +211,10 @@ calc x =
       case Map.lookup (name, length rawArgs) arithFuncs of
         Nothing -> do
           lit <- lift $ unparse x
-          fatalWith $ lit ++ " is not a function"
+          Backtrack.fatalWith $ lit ++ " is not a function"
         Just f -> mapM calc rawArgs >>= f
     Var _ -> argsNotInstantiated
-    _ -> fatalWith "arithmetic term expected"
+    _ -> Backtrack.fatalWith "arithmetic term expected"
 
 ----------------------------------------------------------
 -- unparser
@@ -231,7 +228,7 @@ unparse (PFloat f) = return (show f)
 unparse (Str s)    = return s
 unparse Nil        = return "[]"
 unparse _func@(Func "[|]" [_, _]) = unparseList _func
-unparse _func@(Func _ _) = unparseFunc upperPrecLimit _func
+unparse _func@(Func _ _) = unparseFunc Parser.upperPrecLimit _func
   where
     unparseFunc prec func@(Func name [term]) = do
       fzOpMaybe <- liftOpData $ gets (Map.lookup name . fzMap)
@@ -345,15 +342,15 @@ assertCallable node = case node of
   _        -> typeMismatchFatal "callable" node
 
 argsNotInstantiated :: Monad m => ProverT r m a
-argsNotInstantiated = fatalWith $ "arguments are not sufficiently instantiated"
+argsNotInstantiated = Backtrack.fatalWith $ "arguments are not sufficiently instantiated"
 
 typeMismatchFatal :: Monad m => String -> Node -> ProverT r m a
 typeMismatchFatal expected actual =
-  fatalWith $ expected ++ " expected, but got " ++ typeOf actual
+  Backtrack.fatalWith $ expected ++ " expected, but got " ++ typeOf actual
 
 typeMismatch :: Monad m => String -> Node -> ProverT r m a
 typeMismatch expected actual =
-  failWith $ expected ++ " expected, but got " ++ typeOf actual
+  Backtrack.failWith $ expected ++ " expected, but got " ++ typeOf actual
 
 typeOf :: Node -> String
 typeOf (Atom _)   = "atom"

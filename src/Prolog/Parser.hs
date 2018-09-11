@@ -22,12 +22,13 @@ import           Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set        as Set
 
-import           Lib.Parser (ParserT(..), runParserT, Result(..), failParse)
-import           Lib.Combinator
+import           Lib.Parser     (ParserT(..), runParserT, Result(..), failParse)
+import qualified Lib.Combinator as Combinator
 
 import           Prolog.Token    (Token)
-import qualified Prolog.Token    as Tk
-import           Prolog.Node  (Node(..))
+import qualified Prolog.Token    as Token
+import           Prolog.Node     (Node)
+import qualified Prolog.Node     as Node
 import           Prolog.Operator (Operator(..), OpType(..), OpData(..))
 
 ------------------------------------------------------------
@@ -113,9 +114,9 @@ expr prec = do
       (result, _) <- runParserT anything st
       let result' = case result of
                       Fail _         -> Fail "no more token"
-                      OK Tk.RParen   -> Fail "unexpected `)'"
-                      OK Tk.RBracket -> Fail "unexpected `]'"
-                      OK Tk.Bar      -> Fail "unexpected bar"
+                      OK Token.RParen   -> Fail "unexpected `)'"
+                      OK Token.RBracket -> Fail "unexpected `]'"
+                      OK Token.Bar      -> Fail "unexpected bar"
                       _              -> result
       return (result', st)
 
@@ -123,28 +124,28 @@ expr prec = do
       where fx = do
               Operator name _ _ <- oper Fx prec
               ter <- suffix $ lowerExpr prec
-              return $ Func name [ter]
+              return $ Node.Func name [ter]
             fy = do
               Operator name _ _ <- oper Fy prec
               ter <- term
-              return $ Func name [ter]
+              return $ Node.Func name [ter]
 
     xfx = do
       lhs <- lowerExpr prec
       Operator name _ _ <- oper Xfx prec
       rhs <- lowerExpr prec
-      return $ Func name [lhs, rhs]
+      return $ Node.Func name [lhs, rhs]
 
     suffix p = p >>= loop
       where loop ter = xf ter <|> yf ter <|> return ter
 
     xf ter = do
       Operator name _ _ <- oper Xf prec
-      return $ Func name [ter]
+      return $ Node.Func name [ter]
 
     yf ter = do
       Operator name _ _ <- oper Yf prec
-      let ter' = Func name [ter]
+      let ter' = Node.Func name [ter]
       yf ter' <|> return ter'
 
     rassoc = loop <|> term
@@ -152,7 +153,7 @@ expr prec = do
               lhs <- lowerExpr prec
               Operator name _ _ <- oper Xfy prec
               rhs <- rassoc
-              return $ Func name [lhs, rhs]
+              return $ Node.Func name [lhs, rhs]
 
     lassoc = do
       lhs <- rassoc
@@ -160,7 +161,7 @@ expr prec = do
       where loop ter = (do
               Operator name _ _ <- oper Yfx prec
               rhs <- lowerExpr prec
-              loop $ Func name [ter, rhs]) <|> return ter
+              loop $ Node.Func name [ter, rhs]) <|> return ter
 
 expr0 :: Monad m => PLParserT m Node
 expr0 = do
@@ -175,7 +176,7 @@ func :: Monad m => PLParserT m Node
 func = do
   p <- anything
   case p of
-    Tk.Func f -> Func f <$> do
+    Token.Func f -> Node.Func f <$> do
       args <- (:) <$> lowerExpr 1000 <*> many (commaSep >> lowerExpr 1000)
               <|> return []
       rparen <|> failParse "expected a close parenthesis"
@@ -186,19 +187,19 @@ list :: Monad m => PLParserT m Node
 list = do
   lbracket
   vs <- (:) <$> lowerExpr 1000 <*> many (commaSep >> lowerExpr 1000) <|> return []
-  w <- (exactToken Tk.Bar >> lowerExpr 1000) <|> return Nil
+  w <- (exactToken Token.Bar >> lowerExpr 1000) <|> return Node.Nil
   rbracket
-  return $ foldr (\a b -> Func "[|]" [a,b]) w vs
+  return $ foldr (\a b -> Node.Func "[|]" [a,b]) w vs
 
 prim :: Monad m => PLParserT m Node
 prim = do
   token <- anything
   case token of
-    Tk.Atom a _ -> return $ Atom a
-    Tk.Var    v -> return $ Var v
-    Tk.PInt   i -> return $ PInt i
-    Tk.PFloat f -> return $ PFloat f
-    Tk.Str    s -> return $ Str s
+    Token.Atom a _ -> return $ Node.Atom a
+    Token.Var    v -> return $ Node.Var v
+    Token.PInt   i -> return $ Node.PInt i
+    Token.PFloat f -> return $ Node.PFloat f
+    Token.Str    s -> return $ Node.Str s
     _           -> failParse "not a primitive expression"
 
 ------------------------------------------------------------
@@ -219,14 +220,14 @@ commaSep :: Monad m => PLParserT m ()
 commaSep = do
   a <- anything
   case a of
-    Tk.Atom "," False -> return ()
+    Token.Atom "," False -> return ()
     _ -> failParse "not a comma separator"
 
 oper :: Monad m => OpType -> Int -> PLParserT m Operator
 oper opType prec = do 
   token <- anything
   case token of
-    Tk.Atom name False -> do
+    Token.Atom name False -> do
       op <- getOp name
       case op of
         Nothing -> failParse "not an operator"
@@ -268,16 +269,16 @@ anything = ParserT $ return . p
         p (TokenStream ind (x:xs)) = (OK x, TokenStream (ind+1) xs)
 
 lparen :: Monad m => PLParserT m Token
-lparen = exactToken Tk.LParen
+lparen = exactToken Token.LParen
 
 rparen :: Monad m => PLParserT m Token
-rparen = exactToken Tk.RParen
+rparen = exactToken Token.RParen
 
 lbracket :: Monad m => PLParserT m Token
-lbracket = exactToken Tk.LBracket
+lbracket = exactToken Token.LBracket
 
 rbracket :: Monad m => PLParserT m Token
-rbracket = exactToken Tk.RBracket
+rbracket = exactToken Token.RBracket
 
 period :: Monad m => PLParserT m Token
-period = exactToken Tk.Period
+period = exactToken Token.Period

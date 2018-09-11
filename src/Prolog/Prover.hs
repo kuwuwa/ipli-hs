@@ -42,7 +42,8 @@ import           Lib.Backtrack (BacktrackT, ok)
 import qualified Lib.Backtrack as Backtrack
 
 import           Prolog.Database (Database)
-import           Prolog.Node     (Node(Atom, Var, PInt, PFloat, Str, Nil, Func))
+import           Prolog.Node     (Node)
+import qualified Prolog.Node     as Node
 import           Prolog.Operator (Operator(..), OpData, OpType(..), fzMap, zfMap, zfzMap)
 import qualified Prolog.Parser   as Parser
 
@@ -99,8 +100,8 @@ call :: Monad m => Node -> ProverT r m ()
 call node = do
   assertCallable node
   let (name, args) = case node of
-        Atom n   -> (n, [])
-        Func f a -> (f, a)
+        Node.Atom n   -> (n, [])
+        Node.Func f a -> (f, a)
       arity = length args
   procMaybe    <- lift $ gets (Map.lookup (name, arity) . predDatabase)
   entriesMaybe <- lift $ gets (Map.lookup (name, arity) . database)
@@ -120,13 +121,13 @@ call node = do
 resolve :: Monad m => Node -> ProverT r m Node
 resolve node = do
   case node of
-    Var x -> do
+    Node.Var x -> do
       valMaybe <- liftBindingsP . gets $ Map.lookup x
       case valMaybe of
-        Nothing                   -> register x node
-        Just val@(Var y) | y /= x -> resolve val >>= register x
-        Just val                  -> return val
-    Func name args -> Func name <$> mapM resolve args
+        Nothing -> register x node
+        Just val@(Node.Var y) | y /= x -> resolve val >>= register x
+        Just val -> return val
+    Node.Func name args -> Node.Func name <$> mapM resolve args
     _              -> return node
   where 
     register name node = liftBindingsP (modify $ Map.insert name node) >> return node
@@ -137,15 +138,15 @@ bind x y = do
   x' <- resolve x
   y' <- resolve y
   case (x', y') of
-    (Var xv,  _     ) -> if xv == "_" then ok else bind' xv y'
-    (_,       Var yv) -> if yv == "_" then ok else bind' yv x'
+    (Node.Var xv,  _     )      -> if xv == "_" then ok else bind' xv y'
+    (_,            Node.Var yv) -> if yv == "_" then ok else bind' yv x'
     _                 -> Backtrack.failWith "can't bind two nonvars"
   where
     bind' v term =
       if v == "_" then ok else do
       Backtrack.defer $ liftBindingsP (modify $ Map.delete v)
       case term of
-        Var w -> Backtrack.defer $ liftBindingsP (modify $ Map.delete w)
+        Node.Var w -> Backtrack.defer $ liftBindingsP (modify $ Map.delete w)
         _     -> ok
       liftBindingsP $ modify (Map.insert v term)
 
@@ -155,11 +156,11 @@ unify x y = do
   x' <- resolve x
   y' <- resolve y
   case (x', y') of
-    (Func p0 a0, Func p1 a1) -> do
+    (Node.Func p0 a0, Node.Func p1 a1) -> do
       when (p0 /= p1) $ Backtrack.failWith ("can't unify " ++ show x' ++ " and " ++ show y')
       zipWithM_ unify a0 a1
-    (Var _, _) -> bind x' y'
-    (_, Var _) -> bind x' y'
+    (Node.Var _, _) -> bind x' y'
+    (_, Node.Var _) -> bind x' y'
     _
       | x' == y'  -> ok
       | otherwise -> Backtrack.failWith $ "can't unify " ++ show x' ++ " and " ++ show y'
@@ -171,19 +172,19 @@ fresh (params, body) = do
   fBody <- evalStateT (go body) st'
   return (fParams, fBody)
   where
-    isVar (Var _) = True
+    isVar (Node.Var _) = True
     isVar _       = False
 
     go bd = case bd of
-      Var v | v /= "_" -> do
+      Node.Var v | v /= "_" -> do
         wMaybe <- gets $ Map.lookup v
         case wMaybe of
-          Just w  -> return $ Var w
+          Just w  -> return $ Node.Var w
           Nothing -> do
             fVar <- lift mkFreshVar
             modify $ Map.insert v fVar
-            return $ Var fVar
-      Func p args -> Func p <$> mapM go args
+            return $ Node.Var fVar
+      Node.Func p args -> Node.Func p <$> mapM go args
       _ -> return bd
 
     mkFreshVar :: Monad m => ProverT r m String
@@ -204,16 +205,16 @@ type FuncDatabase r m = Map (Name, Arity) (Function r m)
 calc :: Monad m => Node -> ProverT r m Node
 calc x =
   case x of
-    PInt _   -> return x
-    PFloat _ -> return x
-    Func name rawArgs -> do
+    Node.PInt _   -> return x
+    Node.PFloat _ -> return x
+    Node.Func name rawArgs -> do
       arithFuncs <- lift $ gets funcDatabase
       case Map.lookup (name, length rawArgs) arithFuncs of
         Nothing -> do
           lit <- lift $ unparse x
           Backtrack.fatalWith $ lit ++ " is not a function"
         Just f -> mapM calc rawArgs >>= f
-    Var _ -> argsNotInstantiated
+    Node.Var _ -> argsNotInstantiated
     _ -> Backtrack.fatalWith "arithmetic term expected"
 
 ----------------------------------------------------------
@@ -221,16 +222,16 @@ calc x =
 ----------------------------------------------------------
 
 unparse :: Monad m => Node -> StateT (Environment r m) m String
-unparse (Atom a)   = return a -- TODO: quote when necessary
-unparse (Var v)    = return v
-unparse (PInt i)   = return (show i)
-unparse (PFloat f) = return (show f)
-unparse (Str s)    = return s
-unparse Nil        = return "[]"
-unparse _func@(Func "[|]" [_, _]) = unparseList _func
-unparse _func@(Func _ _) = unparseFunc Parser.upperPrecLimit _func
+unparse (Node.Atom a)   = return a -- TODO: quote when necessary
+unparse (Node.Var v)    = return v
+unparse (Node.PInt i)   = return (show i)
+unparse (Node.PFloat f) = return (show f)
+unparse (Node.Str s)    = return s
+unparse Node.Nil        = return "[]"
+unparse _func@(Node.Func "[|]" [_, _]) = unparseList _func
+unparse _func@(Node.Func _ _) = unparseFunc Parser.upperPrecLimit _func
   where
-    unparseFunc prec func@(Func name [term]) = do
+    unparseFunc prec func@(Node.Func name [term]) = do
       fzOpMaybe <- liftOpData $ gets (Map.lookup name . fzMap)
       zfOpMaybe <- liftOpData $ gets (Map.lookup name . zfMap)
       case (fzOpMaybe, zfOpMaybe) of
@@ -246,7 +247,7 @@ unparse _func@(Func _ _) = unparseFunc Parser.upperPrecLimit _func
           return $ if needParen then "(" ++ content ++ ")" else content
         _ -> unparseFuncDefault func
 
-    unparseFunc prec func@(Func name [lhs, rhs]) = do
+    unparseFunc prec func@(Node.Func name [lhs, rhs]) = do
       if isPair func then unparseList func
       else do
         zfzOpMaybe <- liftOpData $ gets (Map.lookup name . zfzMap)
@@ -260,27 +261,27 @@ unparse _func@(Func _ _) = unparseFunc Parser.upperPrecLimit _func
             let content = lhsStr ++ " " ++ name ++ " " ++ rhsStr
             return $ if needParen then "(" ++ content ++ ")" else content
           _ -> unparseFuncDefault func
-    unparseFunc _ func@(Func _ _) = unparseFuncDefault func
+    unparseFunc _ func@(Node.Func _ _) = unparseFuncDefault func
     unparseFunc _ term = unparse term
 
-    unparseFuncDefault (Func name args) = do
+    unparseFuncDefault (Node.Func name args) = do
       -- 1000 is the precedence of comma
       argsStr <- mapM (unparseFunc $ pred 999) args
       return $ name ++ "(" ++ joinList ", " argsStr ++ ")"
 
-    isPair (Func "[|]" [_,_]) = True
+    isPair (Node.Func "[|]" [_,_]) = True
     isPair _ = False
 
     joinList _ [] = ""
     joinList delim (x:xs) = concat $ x : zipWith (++) (repeat delim) xs
 
 unparseList :: Monad m => Node -> StateT (Environment r m) m String
-unparseList (Func "[|]" [hd, tl]) = do
+unparseList (Node.Func "[|]" [hd, tl]) = do
   hdStr <- unparse hd
   ("[" ++) <$> (hdStr ++) <$> unparseTail tl
   where
-    unparseTail Nil = return "]"
-    unparseTail (Func "[|]" [hd', tl']) = do
+    unparseTail Node.Nil = return "]"
+    unparseTail (Node.Func "[|]" [hd', tl']) = do
         hdStr <- unparse hd'
         (", " ++) <$> (hdStr ++) <$> unparseTail tl'
     unparseTail term = do
@@ -293,52 +294,52 @@ unparseList (Func "[|]" [hd, tl]) = do
 
 assertAtom :: Monad m => Node -> ProverT r m Node
 assertAtom node = case node of
-  Atom _ -> return node
-  Var _  -> argsNotInstantiated
+  Node.Atom _ -> return node
+  Node.Var _  -> argsNotInstantiated
   _      -> typeMismatchFatal "atom" node
 
 assertNumber :: Monad m => Node -> ProverT r m Node
 assertNumber node = case node of
-  PInt _   -> return node
-  PFloat _ -> return node
-  Var _    -> argsNotInstantiated
+  Node.PInt _   -> return node
+  Node.PFloat _ -> return node
+  Node.Var _    -> argsNotInstantiated
   _        -> typeMismatchFatal "number" node
 
 assertPInt :: Monad m => Node -> ProverT r m Node
 assertPInt node = case node of
-  PInt _ -> return node
-  Var _  -> argsNotInstantiated
+  Node.PInt _ -> return node
+  Node.Var _  -> argsNotInstantiated
   _      -> typeMismatchFatal "integer" node
 
 assertPFloat :: Monad m => Node -> ProverT r m Node
 assertPFloat node = case node of
-  PFloat _ -> return node
-  Var _    -> argsNotInstantiated
+  Node.PFloat _ -> return node
+  Node.Var _    -> argsNotInstantiated
   _        -> typeMismatchFatal "float" node
 
 assertStr :: Monad m => Node -> ProverT r m Node
 assertStr node = case node of
-  Str _ -> return node 
-  Var _ -> argsNotInstantiated
+  Node.Str _ -> return node 
+  Node.Var _ -> argsNotInstantiated
   _     -> typeMismatchFatal "string" node
 
 assertNil :: Monad m => Node -> ProverT r m Node
 assertNil node = case node of
-  Nil    -> return node
-  Var _  -> argsNotInstantiated
+  Node.Nil    -> return node
+  Node.Var _  -> argsNotInstantiated
   _      -> typeMismatchFatal "nil" node
 
 assertFunc :: Monad m => Node -> ProverT r m Node
 assertFunc node = case node of
-  Func _ _ -> return node
-  Var _    -> argsNotInstantiated
+  Node.Func _ _ -> return node
+  Node.Var _    -> argsNotInstantiated
   _        -> typeMismatchFatal "functor" node
 
 assertCallable :: Monad m => Node -> ProverT r m Node
 assertCallable node = case node of
-  Atom _   -> return node
-  Func _ _ -> return node
-  Var _    -> argsNotInstantiated
+  Node.Atom _   -> return node
+  Node.Func _ _ -> return node
+  Node.Var _    -> argsNotInstantiated
   _        -> typeMismatchFatal "callable" node
 
 argsNotInstantiated :: Monad m => ProverT r m a
@@ -353,10 +354,10 @@ typeMismatch expected actual =
   Backtrack.failWith $ expected ++ " expected, but got " ++ typeOf actual
 
 typeOf :: Node -> String
-typeOf (Atom _)   = "atom"
-typeOf (Var _)    = "variable"
-typeOf (PInt _)   = "integer"
-typeOf (PFloat _) = "float"
-typeOf (Str _)    = "string"
-typeOf Nil        = "nil"
-typeOf (Func _ _) = "functor"
+typeOf (Node.Atom _)   = "atom"
+typeOf (Node.Var _)    = "variable"
+typeOf (Node.PInt _)   = "integer"
+typeOf (Node.PFloat _) = "float"
+typeOf (Node.Str _)    = "string"
+typeOf Node.Nil        = "nil"
+typeOf (Node.Func _ _) = "functor"

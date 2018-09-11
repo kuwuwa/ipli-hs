@@ -1,5 +1,3 @@
-{-# LANGUAGE RankNTypes #-}
-
 module Prolog.Builtin.Predicate (
   builtinPredicates,
   ioPredicates,
@@ -20,6 +18,8 @@ import           Control.Monad.IO.Class
 import qualified Data.Map as Map
 
 import           System.Exit (exitSuccess)
+
+------------------------------------------------------------
 
 builtinPredicates :: Monad m => PredDatabase r m
 builtinPredicates = Map.fromList [
@@ -87,7 +87,7 @@ ioPredicates = Map.fromList [
   , (("halt",   0), halt)
   ]
 
-------------------------------
+------------------------------------------------------------
 
 -- ("true", 0)
 true :: Monad m => Predicate r m

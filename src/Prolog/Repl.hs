@@ -33,6 +33,7 @@ import qualified Data.Set        as Set
 import           System.Environment
 import           System.IO
 
+
 initEnvironment :: MonadIO m => Environment r m
 initEnvironment = Environment {
     bindings = Map.empty
@@ -103,15 +104,13 @@ repl = (fst <$>) $ flip runStateT initEnvironment $ do
         putStr "[y/N]: " >> hFlush stdout
         yn <- getLine
         return $ map toLower yn `elem` ["y", "yes"]
-      if yes
-      then return ()
-      else failWith "there is not what you want"
-        where
-          printBinding (key, val) =
-            case val of
-              Var v | key == v -> return () -- too trivial to show
-              _                -> lift $ (unparse (Func "=" [Var key, val])) >>= lift . putStrLn
+      if yes then return () else failWith "there is not what you want"
+      where
+        printBinding (key, val) =
+          case val of
+            Var v | key == v -> return () -- too trivial to show
+            _                -> lift $ (unparse (Func "=" [Var key, val])) >>= lift . putStrLn
 
     collectVars (Var v) | v /= "_" = Set.singleton v
-    collectVars (Func _ args)      = foldr Set.union Set.empty $ map collectVars args
+    collectVars (Func _ args)      = foldr1 Set.union $ map collectVars args
     collectVars _                  = Set.empty

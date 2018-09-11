@@ -47,6 +47,8 @@ import           Data.Maybe (fromJust, isJust)
 import           Data.Map (Map)
 import qualified Data.Map as Map
 
+import Debug.Trace
+
 ------------------------------------------------------------
 
 type Name = String
@@ -98,21 +100,22 @@ liftBindingsP = lift . liftBindings
 
 call :: Monad m => Node -> ProverT r m ()
 call node = do
+  assertCallable node
   let (name, args) = case node of
         Atom n   -> (n, [])
         Func f a -> (f, a)
       arity = length args
-  procMaybe <- lift $ gets (Map.lookup (name, arity) . predDatabase)
+  procMaybe    <- lift $ gets (Map.lookup (name, arity) . predDatabase)
   entriesMaybe <- lift $ gets (Map.lookup (name, arity) . database)
   case (procMaybe, entriesMaybe) of
-    (Just proc, _)    -> mapM resolve args >>= proc
+    (Just proc,    _) -> proc =<< mapM resolve args
     (_, Just entries) -> foldr (<|>) failNoAnswer $ map (exec args) entries
-    _                 -> fatalWith $ "no such predicate: " ++ name
+    _                 -> fatalWith $ "Undefined procedure: " ++ name ++ "/" ++ show (length args)
   where
     exec args p = do
       (fParams, fBody) <- fresh p
       zipWithM_ unify args fParams
-      call $ fBody
+      call fBody
 
     failNoAnswer = failWith "no more answer"
 
@@ -122,22 +125,15 @@ resolve node = do
   case node of
     Var x -> do
       valMaybe <- liftBindingsP . gets $ Map.lookup x
-      if not $ isJust valMaybe then do
-        liftBindingsP . modify $ Map.insert x (Var x)
-        return node
-      else do
-        let val = fromJust valMaybe
-        case val of
-          Var y
-            | y == x    -> return val
-            | otherwise -> do
-              val' <- resolve val
-              liftBindingsP . modify $ Map.insert x val'
-              return val'
-          _ -> return val
+      case valMaybe of
+        Nothing                   -> register x node
+        Just val@(Var y) | y /= x -> resolve val >>= register x
+        Just val                  -> return val
     Func name args -> Func name <$> mapM resolve args
-    _ -> return node
-
+    _              -> return node
+  where 
+    register name node = liftBindingsP (modify $ Map.insert name node) >> return node
+    
 
 bind :: Monad m => Node -> Node -> ProverT r m ()
 bind x y = do
@@ -146,7 +142,7 @@ bind x y = do
   case (x', y') of
     (Var xv,  _     ) -> if xv == "_" then ok else bind' xv y'
     (_,       Var yv) -> if yv == "_" then ok else bind' yv x'
-    _ -> failWith "can't bind two nonvars"
+    _                 -> failWith "can't bind two nonvars"
   where
     bind' v term =
       if v == "_" then ok else do
@@ -174,23 +170,18 @@ unify x y = do
 
 fresh :: Monad m => ([Node], Node) -> ProverT r m ([Node], Node)
 fresh (params, body) = do
-  fParams <- mkFreshParams params
-  let renames = map (\(Var v, Var fv) -> (v, fv)) $ filter (isVar . fst) (zip params fParams)
-  fBody <- evalStateT (go body) (Map.fromList renames)
+  (fParams, st') <- runStateT (mapM go params) Map.empty
+  fBody <- evalStateT (go body) st'
   return (fParams, fBody)
   where
     isVar (Var _) = True
     isVar _       = False
 
-    mkFreshParams = mapM $ \nd -> case nd of
-      Var _ -> Var <$> mkFreshVar
-      _     -> return nd
-          
     go bd = case bd of
-      Var v -> do
+      Var v | v /= "_" -> do
         wMaybe <- gets $ Map.lookup v
         case wMaybe of
-          Just w -> return $ Var w
+          Just w  -> return $ Var w
           Nothing -> do
             fVar <- lift mkFreshVar
             modify $ Map.insert v fVar
@@ -200,7 +191,7 @@ fresh (params, body) = do
 
     mkFreshVar :: Monad m => ProverT r m String
     mkFreshVar = do
-      fVar <- ("_G" ++) <$> show <$> lift (gets varNum) 
+      fVar <- ("_V" ++) <$> show <$> lift (gets varNum) 
       exists <- liftBindingsP $ gets (Map.member fVar)
       lift . modify $ \env -> env { varNum = varNum env + 1 }
       if exists then mkFreshVar else return fVar

@@ -175,13 +175,11 @@ func :: Monad m => PLParserT m Node
 func = do
   p <- anything
   case p of
-    Tk.Func f -> do
-      xs <- do
-        args <- (:) <$> lowerExpr 1000 <*> many (commaSep >> lowerExpr 1000)
-                <|> return []
-        rparen <|> failParse "expected a close parenthesis"
-        return $ args
-      return $ Func f xs
+    Tk.Func f -> Func f <$> do
+      args <- (:) <$> lowerExpr 1000 <*> many (commaSep >> lowerExpr 1000)
+              <|> return []
+      rparen <|> failParse "expected a close parenthesis"
+      return $ args
     _ -> failParse "not a functor"
 
 list :: Monad m => PLParserT m Node
@@ -251,11 +249,7 @@ oper opType prec = do
         getZf key = lift . gets $ Map.lookup key . zfMap
 
 withParen :: Monad m => PLParserT m Node -> PLParserT m Node
-withParen p = do
-  lparen
-  val <- p
-  rparen
-  return val
+withParen p = lparen *> p <* rparen
 
 exactToken :: Monad m => Token -> PLParserT m Token
 exactToken target = do

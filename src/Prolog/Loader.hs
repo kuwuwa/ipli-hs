@@ -26,6 +26,8 @@ import           Control.Applicative
 import           Control.Monad.Trans.Class
 import           Control.Monad.Trans.State
 
+import Debug.Trace
+
 loadFile :: FilePath -> StateT (Environment () IO) IO ()
 loadFile path = do
   content <- lift $ readFile path
@@ -54,10 +56,10 @@ loadAll = do
 
 beginTokenize :: String -> Result [Token]
 beginTokenize code =
-  let (result, StrState rest pos) = runParser (many token) (StrState code beginPos)
-  in if rest == ""
-     then result
-     else Fail $ "tokenization failed at " ++ show pos ++ ": " ++ rest
+  let (result, StrState rest pos) = runParser (many token) (StrState code beginPos) in
+    if rest == ""
+      then result
+      else Fail $ "tokenization failed at " ++ show pos ++ ": " ++ rest
 
 loadClause :: Monad m => PLParserT (StateT (Environment () m) m) ()
 loadClause = do

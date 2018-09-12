@@ -1,18 +1,18 @@
 module Prolog.ProverSpec where
 
-import           Prolog.Node
+import           Prolog.Node (Node(Atom, PInt, PFloat, Var, Str, Func))
 import           Prolog.Operator (initOpData)
 import           Prolog.Prover
 
-import           Lib.Backtrack
+import           Lib.Backtrack (BacktrackT(..), Result(OK, Fail, Fatal, Cut), failWith)
 
 import           Control.Applicative
 import           Control.Monad
 import           Control.Monad.Trans.Class
 import           Control.Monad.Trans.State (runStateT, evalStateT, gets)
 
-import           Data.Map (Map)
-import qualified Data.Map as Map
+import           Data.Map.Strict (Map)
+import qualified Data.Map.Strict as Map
 
 import           Test.Hspec
 
@@ -20,15 +20,15 @@ import           Debug.Trace
 
 testEnv :: Environment r m
 testEnv = Environment {
-    bindings     = Map.empty
-  , database     = Map.empty
-  , predDatabase = Map.empty
-  , funcDatabase = Map.empty
-  , opData       = initOpData
-  , varNum       = 0
+  bindings     = Map.empty,
+  database     = Map.empty,
+  predDatabase = Map.empty,
+  funcDatabase = Map.empty,
+  opData       = initOpData,
+  varNum       = 0
 }
 
-run :: Monad m => ProverT r m r -> Environment r m -> m (BResult r)
+run :: Monad m => ProverT r m r -> Environment r m -> m (Result r)
 run bt env = evalStateT (runBacktrackT bt $ return . OK) env
 
 getBindings :: Monad m => ProverT r m Bindings
@@ -96,7 +96,7 @@ spec = do
       ret `shouldBe` Fail "failure in test"
 
     it "raise Fatal when there is no predicate in database" $ do
-      run (call (Atom "foo")) testEnv >>= (`shouldBe` Fatal "no such predicate: foo")
+      run (call (Atom "foo")) testEnv >>= (`shouldBe` Fatal "Undefined procedure: foo/0")
 
     let xGT3 = do
           PInt x <- resolve $ Var "X" -- XX: rough pattern-matching

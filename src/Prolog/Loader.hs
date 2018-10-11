@@ -6,11 +6,11 @@ import           Control.Applicative
 import           Control.Monad.Trans.Class
 import           Control.Monad.Trans.State
 
-import qualified Lib.Combinator   as Combinator
-import           Lib.Parser       (Result(..), runParser, failParse)
-import           Lib.StringParser (StrState(..), beginPos)
-import           Lib.Backtrack    (runBacktrackT)
-import qualified Lib.Backtrack    as Backtrack
+import           Lib.Parser              (Result(..), runParser, failParse)
+import qualified Lib.Parser.Combinator   as Combinator
+import           Lib.Parser.String       (StrState(..), beginPos)
+import           Lib.Backtrack           (runBacktrackT)
+import qualified Lib.Backtrack           as Backtrack
 
 import qualified Prolog.Database  as Database
 import qualified Prolog.Parser    as Parser

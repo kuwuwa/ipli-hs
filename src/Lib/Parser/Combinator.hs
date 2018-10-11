@@ -1,4 +1,4 @@
-module Lib.Combinator where
+module Lib.Parser.Combinator where
 
 import           Lib.Parser
 

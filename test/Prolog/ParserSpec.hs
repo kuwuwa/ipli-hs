@@ -1,5 +1,17 @@
 module Prolog.ParserSpec where
 
+import           Lib.Parser
+import           Lib.Parser.Combinator
+import           Lib.Parser.String
+
+import           Prolog.Node             (Node(..))
+import           Prolog.Token            (Token)
+import qualified Prolog.Token            as Tk
+import           Prolog.Parser           (PLParser, TokenStream(..))
+import qualified Prolog.Parser           as Parser
+import           Prolog.Operator         (upperPrecLimit)
+import           Prolog.Builtin.Operator (builtinOpData)
+
 import           Control.Applicative
 import           Control.Monad
 import           Control.Monad.Trans.State
@@ -9,23 +21,12 @@ import qualified Data.Map as Map
 
 import           Test.Hspec
 
-import           Lib.Combinator
-import           Lib.Parser
-import           Lib.StringParser
-
-import           Prolog.Node  (Node(..))
-import           Prolog.Operator 
-import           Prolog.Token    (Token)
-import qualified Prolog.Token    as Tk
-
-import           Prolog.Parser (PLParser, TokenStream(..), upperPrecLimit)
-import qualified Prolog.Parser as Parser
 
 parse :: PLParser a -> [Token] -> (Result a, TokenStream)
 parse parser tokens =
   let initTkStream = TokenStream 0 tokens
       (((result, stm'), _), _) =
-        runState (runStateT (runParserT parser initTkStream) initOpData) Map.empty
+        runState (runStateT (runParserT parser initTkStream) builtinOpData) Map.empty
   in (result, stm')
 
 spec :: Spec

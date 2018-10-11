@@ -8,8 +8,6 @@ module Prolog.Parser (
   topLevel,
   expr,
   anything,
-  lowerPrecLimit,
-  upperPrecLimit,
   ) where
 
 import           Control.Applicative
@@ -22,14 +20,15 @@ import           Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set        as Set
 
-import           Lib.Parser     (ParserT(..), runParserT, Result(..), failParse)
-import qualified Lib.Combinator as Combinator
+import           Lib.Parser            (ParserT(..), runParserT, Result(..), failParse)
+import qualified Lib.Parser.Combinator as Combinator
 
 import           Prolog.Token    (Token)
 import qualified Prolog.Token    as Token
 import           Prolog.Node     (Node)
 import qualified Prolog.Node     as Node
-import           Prolog.Operator (Operator(..), OpType(..), OpData(..))
+import           Prolog.Operator (Operator(..), OpType(..), OpData(..), Prec)
+import qualified Prolog.Operator as Operator
 
 ------------------------------------------------------------
 -- token stream
@@ -68,8 +67,6 @@ liftPLParserT = lift . lift . lift
 -- memoization
 ------------------------------------------------------------
 
-type Prec = Int
-
 type ParseMemo = Map (Index, Prec) (Result Node, TokenStream)
 
 setMemo :: Monad m => (Index, Prec) -> PLParserT m Node -> PLParserT m Node
@@ -89,15 +86,9 @@ withMemo key parser = do
 -- syntactic parsers for Prolog
 ----------------------------------------------------------
 
-upperPrecLimit :: Int
-upperPrecLimit = 1200
-
-lowerPrecLimit :: Int
-lowerPrecLimit = 0
-
 topLevel :: Monad m => PLParserT m Node
 topLevel = do
-  e <- expr upperPrecLimit
+  e <- expr Operator.upperPrecLimit
   period
   return e
 
@@ -158,15 +149,15 @@ expr prec = do
     lassoc = do
       lhs <- rassoc
       loop lhs
-      where loop ter = (do
+      where loop ter = flip (<|>) (return ter) $ do
               Operator name _ _ <- oper Yfx prec
               rhs <- lowerExpr prec
-              loop $ Node.Func name [ter, rhs]) <|> return ter
+              loop $ Node.Func name [ter, rhs]
 
 expr0 :: Monad m => PLParserT m Node
 expr0 = do
   ind <- index
-  withMemo (ind, 0) $ withParen (expr upperPrecLimit) <|>
+  withMemo (ind, 0) $ withParen (expr Operator.upperPrecLimit) <|>
                       func <|>
                       prim <|>
                       list <|>
@@ -200,7 +191,7 @@ prim = do
     Token.PInt   i -> return $ Node.PInt i
     Token.PFloat f -> return $ Node.PFloat f
     Token.Str    s -> return $ Node.Str s
-    _           -> failParse "not a primitive expression"
+    _              -> failParse "not a primitive expression"
 
 ------------------------------------------------------------
 -- helpful parsers
@@ -265,7 +256,7 @@ exactToken target = do
 
 anything :: Monad m => PLParserT m Token
 anything = ParserT $ return . p
-  where p st@(TokenStream _ [])       = (Fail "no more token", st)
+  where p st@(TokenStream _ []) = (Fail "no more token", st)
         p (TokenStream ind (x:xs)) = (OK x, TokenStream (ind+1) xs)
 
 lparen :: Monad m => PLParserT m Token

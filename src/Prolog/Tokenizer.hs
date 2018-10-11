@@ -16,11 +16,11 @@ module Prolog.Tokenizer (
 import           Control.Monad
 import           Control.Applicative
 
-import           Lib.Parser       (Result(..), failParse)
-import qualified Lib.Parser       as Parser
-import           Lib.StringParser (StrParser(..), StrState(..), char, exact, space, spaces)
-import qualified Lib.StringParser as StringParser
-import qualified Lib.Combinator   as Combinator
+import           Lib.Parser            (Result(..), failParse)
+import qualified Lib.Parser            as Parser
+import           Lib.Parser.String     (StrParser(..), StrState(..), char, exact, space, spaces)
+import qualified Lib.Parser.String     as StringParser
+import qualified Lib.Parser.Combinator as Combinator
 
 import           Prolog.Token (Token)
 import qualified Prolog.Token as Token

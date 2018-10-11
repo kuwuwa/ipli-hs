@@ -1,8 +1,8 @@
 module Prolog.ProverSpec where
 
-import           Prolog.Node (Node(Atom, PInt, PFloat, Var, Str, Func))
-import           Prolog.Operator (initOpData)
+import           Prolog.Node             (Node(Atom, PInt, PFloat, Var, Str, Func))
 import           Prolog.Prover
+import           Prolog.Builtin.Operator (builtinOpData)
 
 import           Lib.Backtrack (BacktrackT(..), Result(OK, Fail, Fatal, Cut), failWith)
 
@@ -16,15 +16,13 @@ import qualified Data.Map.Strict as Map
 
 import           Test.Hspec
 
-import           Debug.Trace
-
 testEnv :: Environment r m
 testEnv = Environment {
   bindings     = Map.empty,
   database     = Map.empty,
   predDatabase = Map.empty,
   funcDatabase = Map.empty,
-  opData       = initOpData,
+  opData       = builtinOpData,
   varNum       = 0
 }
 
@@ -54,11 +52,10 @@ spec = do
       ret <- run (resolve (Var "X")) 
                  testEnv { bindings = Map.fromList [("X", PInt 42)] }
       ret `shouldBe` OK (PInt 42)
-    it "`X = Y, Y = 42` => resolve (Var \"X\")" $ do
-      OK (ret, bd) <- run (resolve (Var "X") >>= attachBindings) 
+    it "`X = Y, Y = 42` => X = 42" $ do
+      OK x <- run (resolve (Var "X")) 
                           testEnv { bindings = Map.fromList [("X", Var "Y"), ("Y", PInt 42)] }
-      ret `shouldBe` PInt 42
-      bd `shouldBe` Map.fromList [("X", PInt 42), ("Y", PInt 42)]
+      x `shouldBe` PInt 42
 
   describe "unify" $ do
     it "X = 42" $ do
@@ -70,9 +67,9 @@ spec = do
     it "`foo(1, bar(Z, 4)) = foo(X, bar(Y, Y))` => X = 1, Y = Z = 4`" $ do
       let u = unify (Func "foo" [PInt 1, Func "bar" [Var "Z", PInt 4]])
                     (Func "foo" [Var "X", Func "bar" [Var "Y", Var "Y"]])
-              >> (resolve $ Var "Z") >> getBindings
-      bd <- run u testEnv
-      bd `shouldBe` OK (Map.fromList [("X", PInt 1), ("Y", PInt 4), ("Z", PInt 4)])
+              >> mapM resolve [Var "X", Var "Y", Var "Z"]
+      res <- run u testEnv
+      res `shouldBe` OK [PInt 1, PInt 4, PInt 4]
 
   describe "call" $ do
     let okPred _ = return () :: ProverT () IO ()
@@ -130,6 +127,5 @@ spec = do
               predDatabase = Map.fromList [ (("=", 2), unifyP) ]
             , database = Map.fromList [ (("foo", 1), [ ([Var "B"], Func "=" [Var "B", PInt 42]) ]) ]
             }
-      OK bd <- run (call (Func "foo" [Var "X"]) >> resolve (Var "X") >> getBindings) env
-      -- `resolve (Var "X")` forces indirect reference (s.t. `X -> _G1 -> 42`) into direct one
-      Map.lookup "X" bd `shouldBe` Just (PInt 42)
+      OK x <- run (call (Func "foo" [Var "X"]) >> resolve (Var "X")) env
+      x `shouldBe` (PInt 42)

@@ -26,7 +26,7 @@ import qualified Prolog.Node      as Node
 import           Prolog.Token     (Token)
 import qualified Prolog.Token     as Token
 import qualified Prolog.Database  as Database
-import           Prolog.Operator  (OpData, initOpData)
+import           Prolog.Operator  (OpData)
 import qualified Prolog.Parser    as Parser
 import           Prolog.Prover    (Environment(..), ProverT)
 import qualified Prolog.Prover    as Prover
@@ -34,6 +34,7 @@ import           Prolog.Tokenizer (tokenize)
 
 import           Prolog.Builtin.Predicate (builtinPredicates, ioPredicates)
 import           Prolog.Builtin.Function  (builtinFuncs)
+import           Prolog.Builtin.Operator  (builtinOpData)
 
 
 initEnvironment :: MonadIO m => Environment r m
@@ -43,7 +44,7 @@ initEnvironment = Environment {
   , predDatabase = Map.union builtinPredicates ioPredicates
   , funcDatabase = builtinFuncs
   , varNum = 0
-  , opData = initOpData
+  , opData = builtinOpData
   }
 
 repl :: IO ()
@@ -100,7 +101,7 @@ repl = (fst <$>) $ flip runStateT initEnvironment $ do
 
     ask :: Set String -> ProverT () IO ()
     ask shown = do
-      bs <- lift $ filter (flip Set.member shown . fst) <$> Map.assocs <$> gets bindings
+      bs <- lift $ filter (`Set.member` shown) . Map.keys <$> gets bindings
       mapM_ printBinding bs
       yes <- lift . lift $ do
         putStr "[y/N]: " >> hFlush stdout
@@ -108,7 +109,8 @@ repl = (fst <$>) $ flip runStateT initEnvironment $ do
         return $ map Char.toLower yn `elem` ["y", "yes"]
       if yes then return () else Backtrack.failWith "there is not what you want"
       where
-        printBinding (key, val) =
+        printBinding key = do
+          val <- Prover.resolve (Node.Var key)
           case val of
             Node.Var v | key == v -> return () -- too trivial to show
             _                -> lift $ (Prover.unparse (Node.Func "=" [Node.Var key, val])) >>= lift . putStrLn

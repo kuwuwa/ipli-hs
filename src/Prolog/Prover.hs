@@ -25,7 +25,7 @@ module Prolog.Prover (
   assertNil,
   assertFunc,
   assertCallable,
-  typeOf,
+  showType,
   argsNotInstantiated,
   typeMismatch,
   ) where
@@ -44,7 +44,8 @@ import qualified Lib.Backtrack as Backtrack
 import           Prolog.Database (Database)
 import           Prolog.Node     (Node)
 import qualified Prolog.Node     as Node
-import           Prolog.Operator (Operator(..), OpData, OpType(..), fzMap, zfMap, zfzMap)
+import           Prolog.Operator (Operator(..), OpData, OpType(..))
+import qualified Prolog.Operator as Operator
 import qualified Prolog.Parser   as Parser
 
 ------------------------------------------------------------
@@ -125,10 +126,10 @@ resolve node = do
       valMaybe <- liftBindingsP . gets $ Map.lookup x
       case valMaybe of
         Nothing -> register x node
-        Just val@(Node.Var y) | y /= x -> resolve val >>= register x
+        Just val@(Node.Var y) | y /= x -> resolve val
         Just val -> return val
     Node.Func name args -> Node.Func name <$> mapM resolve args
-    _              -> return node
+    _ -> return node
   where 
     register name node = liftBindingsP (modify $ Map.insert name node) >> return node
     
@@ -138,7 +139,7 @@ bind x y = do
   x' <- resolve x
   y' <- resolve y
   case (x', y') of
-    (Node.Var xv,  _     )      -> if xv == "_" then ok else bind' xv y'
+    (Node.Var xv,  _)           -> if xv == "_" then ok else bind' xv y'
     (_,            Node.Var yv) -> if yv == "_" then ok else bind' yv x'
     _                 -> Backtrack.failWith "can't bind two nonvars"
   where
@@ -226,14 +227,14 @@ unparse (Node.Atom a)   = return a -- TODO: quote when necessary
 unparse (Node.Var v)    = return v
 unparse (Node.PInt i)   = return (show i)
 unparse (Node.PFloat f) = return (show f)
-unparse (Node.Str s)    = return s
+unparse (Node.Str s)    = return (show s)
 unparse Node.Nil        = return "[]"
 unparse _func@(Node.Func "[|]" [_, _]) = unparseList _func
-unparse _func@(Node.Func _ _) = unparseFunc Parser.upperPrecLimit _func
+unparse _func@(Node.Func _ _) = unparseFunc Operator.upperPrecLimit _func
   where
     unparseFunc prec func@(Node.Func name [term]) = do
-      fzOpMaybe <- liftOpData $ gets (Map.lookup name . fzMap)
-      zfOpMaybe <- liftOpData $ gets (Map.lookup name . zfMap)
+      fzOpMaybe <- liftOpData $ gets (Map.lookup name . Operator.fzMap)
+      zfOpMaybe <- liftOpData $ gets (Map.lookup name . Operator.zfMap)
       case (fzOpMaybe, zfOpMaybe) of
         (Just (Operator _ prec' opType), _) -> do
           let needParen = prec' > prec
@@ -250,8 +251,9 @@ unparse _func@(Node.Func _ _) = unparseFunc Parser.upperPrecLimit _func
     unparseFunc prec func@(Node.Func name [lhs, rhs]) = do
       if isPair func then unparseList func
       else do
-        zfzOpMaybe <- liftOpData $ gets (Map.lookup name . zfzMap)
+        zfzOpMaybe <- liftOpData $ gets (Map.lookup name . Operator.zfzMap)
         case zfzOpMaybe of
+          Nothing -> unparseFuncDefault func
           Just (Operator _ prec' opType) -> do
             let needParen = prec' > prec
                 precLhs = if opType == Yfx then prec' else prec' - 1
@@ -260,7 +262,6 @@ unparse _func@(Node.Func _ _) = unparseFunc Parser.upperPrecLimit _func
             rhsStr <- unparseFunc precRhs rhs
             let content = lhsStr ++ " " ++ name ++ " " ++ rhsStr
             return $ if needParen then "(" ++ content ++ ")" else content
-          _ -> unparseFuncDefault func
     unparseFunc _ func@(Node.Func _ _) = unparseFuncDefault func
     unparseFunc _ term = unparse term
 
@@ -272,7 +273,7 @@ unparse _func@(Node.Func _ _) = unparseFunc Parser.upperPrecLimit _func
     isPair (Node.Func "[|]" [_,_]) = True
     isPair _ = False
 
-    joinList _ [] = ""
+    joinList _ [] = []
     joinList delim (x:xs) = concat $ x : zipWith (++) (repeat delim) xs
 
 unparseList :: Monad m => Node -> StateT (Environment r m) m String
@@ -347,17 +348,17 @@ argsNotInstantiated = Backtrack.fatalWith $ "arguments are not sufficiently inst
 
 typeMismatchFatal :: Monad m => String -> Node -> ProverT r m a
 typeMismatchFatal expected actual =
-  Backtrack.fatalWith $ expected ++ " expected, but got " ++ typeOf actual
+  Backtrack.fatalWith $ expected ++ " expected, but got " ++ showType actual
 
 typeMismatch :: Monad m => String -> Node -> ProverT r m a
 typeMismatch expected actual =
-  Backtrack.failWith $ expected ++ " expected, but got " ++ typeOf actual
+  Backtrack.failWith $ expected ++ " expected, but got " ++ showType actual
 
-typeOf :: Node -> String
-typeOf (Node.Atom _)   = "atom"
-typeOf (Node.Var _)    = "variable"
-typeOf (Node.PInt _)   = "integer"
-typeOf (Node.PFloat _) = "float"
-typeOf (Node.Str _)    = "string"
-typeOf Node.Nil        = "nil"
-typeOf (Node.Func _ _) = "functor"
+showType :: Node -> String
+showType (Node.Atom _)   = "atom"
+showType (Node.Var _)    = "variable"
+showType (Node.PInt _)   = "integer"
+showType (Node.PFloat _) = "float"
+showType (Node.Str _)    = "string"
+showType Node.Nil        = "nil"
+showType (Node.Func _ _) = "functor"

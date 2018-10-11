@@ -16,12 +16,13 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:       src
   exposed-modules:      Lib.Backtrack
-                      , Lib.Combinator
                       , Lib.Parser
+                      , Lib.Parser.Combinator
+                      , Lib.Parser.String
                       , Lib.Result
-                      , Lib.StringParser
                       , Prolog
                       , Prolog.Builtin.Function
+                      , Prolog.Builtin.Operator
                       , Prolog.Builtin.Predicate
                       , Prolog.Database
                       , Prolog.Loader

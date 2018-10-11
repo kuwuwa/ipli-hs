@@ -1,4 +1,4 @@
-module Lib.StringParser (
+module Lib.Parser.String (
   StrParser,
   StrState(..),
   Pos(..),
@@ -17,7 +17,7 @@ module Lib.StringParser (
   ) where
 
 import           Lib.Parser
-import           Lib.Combinator
+import           Lib.Parser.Combinator
 
 import           Control.Monad
 import           Control.Applicative

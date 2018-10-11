@@ -1,13 +1,16 @@
 module Prolog.Operator (
   OpType(..),
   Operator(..),
+  Prec,
   OpState,
   OpMap,
+  upperPrecLimit,
+  lowerPrecLimit,
   OpData(..),
+  mkOpData,
   addOp,
   opers,
   readOpType,
-  initOpData,
   ) where
 
 import           Data.Set (Set)
@@ -40,13 +43,22 @@ instance Eq OpType where
   Yfx == Yfx = True
   _   == _   = False
 
-data Operator = Operator String Int OpType
+
+data Operator = Operator String Prec OpType
 
 instance Show Operator where
   show (Operator name prec opType) =
       "Operator<" ++ name ++ ", " ++ show prec ++ ", " ++ show opType ++ ">"
 
-------------------------------
+
+type Prec = Int
+
+upperPrecLimit :: Prec
+upperPrecLimit = 1200
+
+lowerPrecLimit :: Prec
+lowerPrecLimit = 0
+
 
 type OpState = State OpData
 
@@ -69,6 +81,7 @@ addOp :: Operator -> OpData -> OpData
 addOp op@(Operator opName _ opType) opData =
   mkOpData (updZfz $ zfzMap opData) (updFz $ fzMap opData) (updZf $ zfMap opData)
   where insert = Map.insert opName op
+
         (updFz, updZf, updZfz)
           | opType `elem` [Fx, Fy] = (insert, id ,id)
           | opType `elem` [Xf, Yf] = (id, insert, id)
@@ -87,37 +100,5 @@ readOpType "xfy" = Just Xfy
 readOpType "yfx" = Just Yfx
 readOpType  _    = Nothing
 
-------------------------------
 
 type OpMap = Map String Operator
-
-initOpData :: OpData
-initOpData = mkOpData (Map.fromList binaryOperators)
-                      (Map.fromList prefixOperators)
-                      (Map.fromList suffixOperators)
-  where
-    operators = concat . map makeOperators $ [
-        (1200, Xfx, ["-->", ":-"])
-      , (1200, Fx,  [":-", "?-"])
-      , (1100, Xfy, [";", "|"])
-      , (1050, Xfy, ["->", "*->"])
-      , (1000, Xfy, [","])
-      , (990,  Xfx, [":="])
-      , (900,  Fy,  ["\\+"])
-      , (700,  Xfx, ["<", "=", "=..", "=@=", "\\=@=", "=:=", "=<", "==", "=\\=", ">", ">=",
-                     "@<", "@=<", "@>", "@>=", "\\=", "\\==", "as", "is", ">:<", ":<"])
-      , (600,  Xfy, [":"])
-      , (500,  Yfx, ["+", "-", "/\\", "\\/", "xor"])
-      , (500,  Fx,  ["?"])
-      , (400,  Yfx, ["*", "/", "//", "div", "rdiv", "<<", ">>", "mod", "rem"])
-      , (200,  Xfx, ["**"])
-      , (200,  Xfy, ["^"])
-      , (200,  Fy,  ["+", "-", "\\"])
-      , (100,  Yfx, ["."]) -- used for dicts (not an end of expression)
-      , (1,    Fx,  ["$"])
-      ]
-    binaryOperators = filter (operOneOf [Xfx, Xfy, Yfx]) operators
-    prefixOperators = filter (operOneOf [Fx, Fy]) operators
-    suffixOperators = filter (operOneOf [Xf, Yf]) operators
-    operOneOf opTypes (_, Operator _ _ opT) = opT `elem` opTypes
-    makeOperators (prec, opType, atoms) = map (\name -> (name, Operator name prec opType)) atoms

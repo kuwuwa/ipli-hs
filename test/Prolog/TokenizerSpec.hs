@@ -3,7 +3,8 @@ module Prolog.TokenizerSpec where
 import Test.Hspec
 
 import Lib.Parser
-import Lib.StringParser
+import Lib.Parser.String
+
 import Prolog.Token
 import Prolog.Tokenizer
 

@@ -104,9 +104,9 @@ spaces :: StrParser ()
 spaces = ignore (many space)
 
 filterP :: (a -> Bool) -> String -> StrParser a -> StrParser a
-filterP pred msg p = do
+filterP f msg p = do
   res <- p
-  guard (pred res) <|> failParse msg
+  guard (f res) <|> failParse msg
   return res
 
 consume :: StrParser a -> StrParser String

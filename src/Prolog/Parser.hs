@@ -20,8 +20,7 @@ import           Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set        as Set
 
-import           Lib.Parser            (ParserT(..), runParserT, Result(..), failParse)
-import qualified Lib.Parser.Combinator as Combinator
+import           Lib.Parser (ParserT(..), runParserT, Result(..), failParse)
 
 import           Prolog.Token    (Token)
 import qualified Prolog.Token    as Token
@@ -104,11 +103,11 @@ expr prec = do
     lookahead = ParserT $ \st -> do
       (result, _) <- runParserT anything st
       let result' = case result of
-                      Fail _         -> Fail "no more token"
-                      OK Token.RParen   -> Fail "unexpected `)'"
+                      Fail _ -> Fail "no more token"
+                      OK Token.RParen -> Fail "unexpected `)'"
                       OK Token.RBracket -> Fail "unexpected `]'"
-                      OK Token.Bar      -> Fail "unexpected bar"
-                      _              -> result
+                      OK Token.Bar -> Fail "unexpected bar"
+                      _ -> OK ()
       return (result', st)
 
     term = fx <|> fy <|> xfx <|> suffix (lowerExpr prec)
@@ -243,33 +242,33 @@ oper opType prec = do
 withParen :: Monad m => PLParserT m Node -> PLParserT m Node
 withParen p = lparen *> p <* rparen
 
-exactToken :: Monad m => Token -> PLParserT m Token
-exactToken target = do
-  tk <- anything
-  if tk == target
-    then return tk
-    else failParse $ "expected " ++ show target ++ ", but actually " ++ show tk
-
 ------------------------------------------------------------
 -- some atomic parsers
 ------------------------------------------------------------
+
+exactToken :: Monad m => Token -> PLParserT m ()
+exactToken target = do
+  tk <- anything
+  if tk == target
+    then return ()
+    else failParse $ "expected " ++ show target ++ ", but actually " ++ show tk
 
 anything :: Monad m => PLParserT m Token
 anything = ParserT $ return . p
   where p st@(TokenStream _ []) = (Fail "no more token", st)
         p (TokenStream ind (x:xs)) = (OK x, TokenStream (ind+1) xs)
 
-lparen :: Monad m => PLParserT m Token
+lparen :: Monad m => PLParserT m ()
 lparen = exactToken Token.LParen
 
-rparen :: Monad m => PLParserT m Token
+rparen :: Monad m => PLParserT m ()
 rparen = exactToken Token.RParen
 
-lbracket :: Monad m => PLParserT m Token
+lbracket :: Monad m => PLParserT m ()
 lbracket = exactToken Token.LBracket
 
-rbracket :: Monad m => PLParserT m Token
+rbracket :: Monad m => PLParserT m ()
 rbracket = exactToken Token.RBracket
 
-period :: Monad m => PLParserT m Token
+period :: Monad m => PLParserT m ()
 period = exactToken Token.Period

@@ -4,6 +4,7 @@ module Prolog.Builtin.Predicate (
   ) where
 
 import           Control.Applicative
+import           Control.Monad 
 import           Control.Monad.Trans.Class
 import           Control.Monad.Trans.State
 import           Control.Monad.IO.Class
@@ -12,9 +13,8 @@ import qualified Data.Map.Strict as Map
 
 import           Prolog.Node     (Node)
 import qualified Prolog.Node     as Node
-import           Prolog.Prover   (Predicate, unify, call)
+import           Prolog.Prover   (ProverT, Predicate, unify, call)
 import qualified Prolog.Prover   as Prover
-import           Prolog.Database (Database)
 import qualified Prolog.Database as Database
 import           Prolog.Operator (Operator(Operator))
 import qualified Prolog.Operator as Operator
@@ -90,6 +90,7 @@ ioPredicates :: MonadIO m => Prover.PredDatabase r m
 ioPredicates = Map.fromList [
     (("write",  1), write)
   , (("halt",   0), halt)
+  , (("nl",     0), nl)
   ]
 
 ------------------------------------------------------------
@@ -104,96 +105,112 @@ fail' _ = Backtrack.failWith "fail"
 
 -- ("call", 1)
 callp :: Monad m => Predicate r m
-callp [term] = call term
+callp = arity1 >=> call
 
 -- (",", 2)
 andp :: Monad m => Predicate r m
-andp [lhs, rhs] = call lhs >> call rhs
+andp args = do
+  (lhs, rhs) <- arity2 args
+  call lhs >> call rhs
 
 -- (";", 2)
 orp :: Monad m => Predicate r m
-orp [lhs, rhs] = call lhs <|> call rhs
+orp args = do
+  (lhs, rhs) <- arity2 args
+  call lhs <|> call rhs
 
 -- ("=", 2)
 unify' :: Monad m => Predicate r m
-unify' [lhs, rhs] = unify lhs rhs
+unify' = arity2 >=> uncurry unify
 
 -- ("\=", 2)
 failIfUnified :: Monad m => Predicate r m
-failIfUnified [lhs, rhs] = BacktrackT $ \k -> do
-  let p = (unify lhs rhs >> Backtrack.fatalWith "neq") <|> ok
-  res <- runBacktrackT p k
-  return $ case res of
-    Backtrack.Fatal "neq" -> Backtrack.Fail $ show lhs ++ " and " ++ show rhs ++ " can be unified"
-    _           -> res
+failIfUnified args = do
+  (lhs, rhs) <- arity2 args
+  BacktrackT $ \k -> do
+    let p = (unify lhs rhs >> Backtrack.fatalWith "neq") <|> ok
+    res <- runBacktrackT p k
+    return $ case res of
+      Backtrack.Fatal "neq" ->
+        Backtrack.Fail $ show lhs ++ " and " ++ show rhs ++ " can be unified"
+      _           -> res
 
 -- ("var", 1)
 var :: Monad m => Predicate r m
-var [term] = do
-  case term of
-    Node.Var _ -> ok
-    _     -> Prover.typeMismatch "variable" term
+var args = do
+  term <- arity1 args
+  brVar term ok (Prover.typeMismatch "variable" term)
 
 -- ("nonvar", 1)
 nonvar :: Monad m => Predicate r m
-nonvar args = BacktrackT $ \k -> do
-  let p = (var args >> Backtrack.fatalWith "unexpected var") <|> ok
-  res <- runBacktrackT p k
-  return $ case res of
-    Backtrack.Fatal msg -> Backtrack.Fail msg
-    _         -> res
+nonvar args = do
+  term <- arity1 args
+  brVar term (Backtrack.failWith "unexpected var") ok
+
+brVar :: Monad m => Node -> ProverT r m a -> ProverT r m a -> ProverT r m a
+brVar term k1 k2 =
+  case term of
+    Node.Var _ -> k1
+    _ -> k2
 
 -- ("atom", 1)
 atom :: Monad m => Predicate r m
-atom [term] = do
+atom args = do
+  term <- arity1 args
   case term of
     Node.Atom _ -> ok
     _      -> Prover.typeMismatch "atom" term
 
 -- ("number", 1)
 number :: Monad m => Predicate r m
-number [term] = do
-  case term of
-    Node.PInt _   -> ok
-    Node.PFloat _ -> ok
-    _        -> Prover.typeMismatch "number" term
+number = arity1 >=> f
+  where
+    f (Node.PInt _) = ok
+    f (Node.PFloat _) = ok
+    f t = Prover.typeMismatch "number" t
 
 -- ("integer", 1)
 integer :: Monad m => Predicate r m
-integer [term] = do
-  case term of
-    Node.PInt _ -> ok
-    _      -> Prover.typeMismatch "integer" term
+integer = arity1 >=> f
+  where
+    f (Node.PInt _) = ok
+    f t = Prover.typeMismatch "integer" t
 
 -- ("float", 1)
 float :: Monad m => Predicate r m
-float [term] = do
-  case term of
-    Node.PFloat _ -> ok
-    _        -> Prover.typeMismatch "float" term
+float = arity1 >=> f
+  where
+    f (Node.PFloat _) = ok
+    f t = Prover.typeMismatch "float" t
 
 -- ("compound", 1)
 compound :: Monad m => Predicate r m
-compound [term] = do
-  case term of
-    Node.Func _ _ -> ok
-    _        -> Prover.typeMismatch "compound" term
+compound = arity1 >=> f
+  where
+    f (Node.Func _ _) = ok
+    f t = Prover.typeMismatch "compound" t
 
 ------------------------------
 
 -- ("==", 2)
 eq :: Monad m => Predicate r m
-eq [lhs, rhs] = if lhs == rhs then ok else Backtrack.failWith "eq"
+eq args = do
+  (lhs, rhs) <- arity2 args
+  if lhs == rhs then ok else Backtrack.failWith "eq"
 
 -- ("=/=", 2)
 neq :: Monad m => Predicate r m
-neq [lhs, rhs] = if lhs /= rhs then ok else Backtrack.failWith "neq"
+neq args = do
+  (lhs, rhs) <- arity2 args
+  if lhs /= rhs then ok else Backtrack.failWith "neq"
 
 ------------------------------
 
 -- ("is", 2)
 is :: Monad m => Predicate r m
-is [lhs, rhs] = Prover.calc rhs >>= unify lhs
+is args = do
+  (lhs, rhs) <- arity2 args
+  Prover.calc rhs >>= unify lhs
 
 -- ("=<", 2)
 lte :: Monad m => Predicate r m
@@ -221,7 +238,8 @@ neqNum = compareNum "=\\=" (/=)
 
 {-# INLINE compareNum #-}
 compareNum :: Monad m => String -> (forall a. Ord a => a -> a -> Bool) -> Predicate r m
-compareNum cmpSymbol cmp [lhs, rhs] = do
+compareNum cmpSymbol cmp args = do
+  (lhs, rhs) <- arity2 args
   Prover.assertNumber lhs >> Prover.assertNumber rhs
   res <- do
     case (lhs, rhs) of
@@ -231,21 +249,22 @@ compareNum cmpSymbol cmp [lhs, rhs] = do
       (Node.PFloat lv, Node.PInt rv)   -> return $ lv             `cmp` fromInteger rv
   if res then ok
   else do
-    [lhsStr, rhsStr] <- lift $ mapM Prover.unparse [lhs, rhs]
-    Backtrack.failWith $ "`" ++ lhsStr ++ " " ++ cmpSymbol ++ " " ++ rhsStr ++ "` does not hold"
+    lhsLit <- lift $ Prover.unparse lhs
+    rhsLit <- lift $ Prover.unparse rhs
+    Backtrack.failWith $ "`" ++ lhsLit ++ " " ++ cmpSymbol ++ " " ++ rhsLit ++ "` does not hold"
 
 ------------------------------
 
 asserta :: Monad m => Predicate r m
-asserta [term] = do
-  res <- lift . Prover.liftDB $ Database.prependClause term
+asserta args = do
+  res <- lift . Prover.liftDB . Database.prependClause =<< arity1 args
   case res of
     Left msg -> Backtrack.fatalWith msg
     Right _  -> ok
 
 assertz :: Monad m => Predicate r m
-assertz [term] = do
-  res <- lift . Prover.liftDB $ Database.appendClause term
+assertz args = do
+  res <- lift . Prover.liftDB . Database.appendClause =<< arity1 args
   case res of
     Left msg -> Backtrack.fatalWith msg
     Right _  -> ok
@@ -253,8 +272,9 @@ assertz [term] = do
 ------------------------------
 
 op :: Monad m => Predicate r m
-op [a, b, c] = do
-  Node.PInt prec  <- Prover.assertPInt a
+op args = do
+  (a, b, c) <- arity3 args
+  Node.PInt prec <- Prover.assertPInt a
   let precInt = fromInteger prec
   Node.Atom typ  <- Prover.assertAtom b
   Node.Atom name <- Prover.assertAtom c
@@ -263,17 +283,18 @@ op [a, b, c] = do
     Just opType -> lift . Prover.liftOpData $ modify' (Operator.addOp $ Operator name precInt opType)
 
 currentOp :: Monad m => Predicate r m
-currentOp [a, b, c] = do
+currentOp args = do
+  (a, b, c) <- arity3 args
+  let u (name, prec, opType) = unify a prec >> unify b opType >> unify c name
   ops <- map fmt <$> (lift . Prover.liftOpData $ gets Operator.opers)
   foldr1 (<|>) $ map u ops
   where fmt (Operator name prec opType) =
           (Node.Atom name, Node.PInt (fromIntegral prec), Node.Atom (show opType))
-        u (name, prec, opType) = unify a prec >> unify b opType >> unify c name
   
 ------------------------------
 
 cut' :: Monad m => Predicate r m
-cut' [] = Backtrack.cut
+cut' _ = Backtrack.cut
 
 -- ("\\+", 1)
 neg :: Monad m => Predicate r m
@@ -290,7 +311,7 @@ once [goal] = call goal >> Backtrack.cut
 
 -- ("repeat", 0)
 repeat' :: Monad m => Predicate r m
-repeat' [] = ok <|> repeat' []
+repeat' _ = ok <|> repeat' []
 
 ------------------------------
 
@@ -332,3 +353,33 @@ write [term] = return term >>= lift . Prover.unparse >>= liftIO . putStrLn
 -- ("halt", 0)
 halt :: MonadIO m => Predicate r m
 halt [] = liftIO exitSuccess
+
+-- ("nl", 0)
+nl :: MonadIO m => Predicate r m
+nl [] = liftIO $ putStrLn ""
+
+------------------------------
+
+arity0 :: Monad m => [a] -> ProverT r m ()
+arity0 xs =
+  case xs of
+    [] -> return ()
+    _  -> Backtrack.fatalWith "internal error"
+
+arity1 :: Monad m => [a] -> ProverT r m a
+arity1 xs =
+  case xs of
+    [x] -> return x
+    _  -> Backtrack.fatalWith "internal error"
+
+arity2 :: Monad m => [a] -> ProverT r m (a, a)
+arity2 xs =
+  case xs of
+    [x, y] -> return (x, y)
+    _  -> Backtrack.fatalWith "internal error"
+
+arity3 :: Monad m => [a] -> ProverT r m (a, a, a)
+arity3 xs =
+  case xs of
+    [x, y, z] -> return (x, y, z)
+    _  -> Backtrack.fatalWith "internal error"

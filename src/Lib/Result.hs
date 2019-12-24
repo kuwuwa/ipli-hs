@@ -16,5 +16,5 @@ instance (Show o) => Show (Result o) where
   show (OK o)     = "OK " ++ show o
 
 instance Functor Result where
-  fmap f (Fail msg) = Fail msg
+  fmap _ (Fail msg) = Fail msg
   fmap f (OK v)     = OK (f v)

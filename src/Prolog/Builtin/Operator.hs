@@ -2,7 +2,6 @@ module Prolog.Builtin.Operator (builtinOpData) where
 
 import           Prolog.Operator
 
-import           Data.Map (Map)
 import qualified Data.Map as Map
 
 builtinOpData :: OpData

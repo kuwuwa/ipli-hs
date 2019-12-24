@@ -32,11 +32,7 @@ emptyDatabase :: Database
 emptyDatabase = Map.empty
 
 getPredicates :: Monad m => Name -> Arity -> StateT Database m [(Args, Body)]
-getPredicates name arity = do
-  resultMaybe <- gets $ Map.lookup (name, arity)
-  return $ case resultMaybe of
-             Nothing -> []
-             Just result -> result
+getPredicates name arity = gets $ Map.findWithDefault [] (name, arity)
 
 appendClause :: Monad m => Node -> StateT Database m (Either String Entry)
 appendClause node = do
@@ -47,9 +43,8 @@ appendClause node = do
       return $ Right (key, val)
     where append :: Ord k => k -> v -> Map k [v] -> Map k [v]
           append key val mp =
-            case Map.lookup key mp of
-              Nothing -> Map.insert key [val] mp
-              Just _  -> Map.adjust (++ [val]) key mp
+            let xs = Map.findWithDefault [] key mp in
+            Map.insert key (xs ++ [val]) mp
 
 prependClause :: Monad m => Node -> StateT Database m (Either String Entry)
 prependClause node = do
@@ -57,21 +52,22 @@ prependClause node = do
     Left msg -> return $ Left msg
     Right (key, val) -> do
       modify' $ prepend key val
-      return  $ Right (key, val)
+      return $ Right (key, val)
     where prepend :: Ord k => k -> v -> Map k [v] -> Map k [v]
           prepend key val mp =
-            case Map.lookup key mp of
-              Nothing -> Map.insert key [val] mp
-              Just _  -> Map.adjust (val:) key mp
+            let xs = Map.findWithDefault [] key mp in
+            Map.insert key (val:xs) mp
 
 ------------------------------------------------------------
 
 parseClause :: Node -> Either String Entry
-parseClause (Func ":-" [hd, body]) =
-  case hd of
-    Func name params -> Right ((name, length params), (params, body))
-    Atom name        -> Right ((name, 0),             ([], body))
-    x -> Left $ "callable expected, but got " ++ show x
-parseClause (Func name params) = Right ((name, length params), (params, Atom "true"))
-parseClause (Atom name)        = Right ((name, 0), ([], Atom "true"))
-parseClause x                  = Left $ "callable expected, but got " ++ show x
+parseClause node =
+  case node of
+    Func ":-" [hd, body] -> aux hd body
+    _ -> aux node (Atom "true")
+  where
+    aux hd body =
+      case hd of
+        Func name params -> Right ((name, length params), (params, body))
+        Atom name -> Right ((name, 0), ([], body))
+        x -> Left $ "callable expected, but got " ++ show x

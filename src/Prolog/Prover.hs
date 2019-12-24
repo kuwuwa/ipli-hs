@@ -103,6 +103,7 @@ call node = do
   let (name, args) = case node of
         Node.Atom n   -> (n, [])
         Node.Func f a -> (f, a)
+        _ -> undefined
       arity = length args
   procMaybe    <- lift $ gets (Map.lookup (name, arity) . predDatabase)
   entriesMaybe <- lift $ gets (Map.lookup (name, arity) . database)
@@ -120,16 +121,16 @@ call node = do
 
 
 resolve :: Monad m => Node -> ProverT r m Node
-resolve node = do
-  case node of
+resolve target = do
+  case target of
     Node.Var x -> do
       valMaybe <- liftBindingsP . gets $ Map.lookup x
       case valMaybe of
-        Nothing -> register x node
+        Nothing -> register x target
         Just val@(Node.Var y) | y /= x -> resolve val
         Just val -> return val
     Node.Func name args -> Node.Func name <$> mapM resolve args
-    _ -> return node
+    _ -> return target
   where 
     register name node = liftBindingsP (modify $ Map.insert name node) >> return node
     
@@ -173,9 +174,6 @@ fresh (params, body) = do
   fBody <- evalStateT (go body) st'
   return (fParams, fBody)
   where
-    isVar (Node.Var _) = True
-    isVar _       = False
-
     go bd = case bd of
       Node.Var v | v /= "_" -> do
         wMaybe <- gets $ Map.lookup v
@@ -246,14 +244,14 @@ unparse _func@(Node.Func _ _) = unparseFunc Operator.upperPrecLimit _func
               precNext = if opType == Yf then prec' else prec' - 1
           content <- (++ " " ++ name) <$> unparseFunc precNext term 
           return $ if needParen then "(" ++ content ++ ")" else content
-        _ -> unparseFuncDefault func
+        _ -> unparseFuncDefault name [term]
 
     unparseFunc prec func@(Node.Func name [lhs, rhs]) = do
       if isPair func then unparseList func
       else do
         zfzOpMaybe <- liftOpData $ gets (Map.lookup name . Operator.zfzMap)
         case zfzOpMaybe of
-          Nothing -> unparseFuncDefault func
+          Nothing -> unparseFuncDefault name [lhs, rhs]
           Just (Operator _ prec' opType) -> do
             let needParen = prec' > prec
                 precLhs = if opType == Yfx then prec' else prec' - 1
@@ -262,12 +260,12 @@ unparse _func@(Node.Func _ _) = unparseFunc Operator.upperPrecLimit _func
             rhsStr <- unparseFunc precRhs rhs
             let content = lhsStr ++ " " ++ name ++ " " ++ rhsStr
             return $ if needParen then "(" ++ content ++ ")" else content
-    unparseFunc _ func@(Node.Func _ _) = unparseFuncDefault func
+    unparseFunc _ func@(Node.Func name args) = unparseFuncDefault name args
     unparseFunc _ term = unparse term
 
-    unparseFuncDefault (Node.Func name args) = do
+    unparseFuncDefault name args = do
       -- 1000 is the precedence of comma
-      argsStr <- mapM (unparseFunc $ pred 999) args
+      argsStr <- mapM (unparseFunc 999) args
       return $ name ++ "(" ++ joinList ", " argsStr ++ ")"
 
     isPair (Node.Func "[|]" [_,_]) = True

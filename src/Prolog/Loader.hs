@@ -60,7 +60,7 @@ loadClause :: Monad m => PLParserWithEnv m ()
 loadClause = do
   clause <- Parser.topLevel
   case clause of
-    Node.Func ":-"  [node] -> do
+    Node.Func ":-" [node] -> do
       Parser.liftPLParserT $ runBacktrackT (Prover.call node) (return . Backtrack.OK)
       return ()
     _ -> Parser.liftPLParserT . Prover.liftDB $ Database.appendClause clause >> return ()
